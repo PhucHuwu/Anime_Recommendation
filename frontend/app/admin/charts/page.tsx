@@ -68,63 +68,17 @@ export default function AdminChartsPage() {
                 // Fetch Models
                 const models = await api.getModels();
                 if (models && models.length > 0) {
-                    // Helper to get raw metric value with NaN guard
-                    const getRaw = (modelNamePart: string, metric: keyof ModelMetrics) => {
-                        const m = models.find((m) => m.model_name.toLowerCase().includes(modelNamePart));
-                        if (!m) return 0;
-                        const val = m[metric] as number;
-                        return typeof val === "number" && !isNaN(val) ? val : 0;
-                    };
-
-                    // Normalize metric to 0-100 scale
-                    // If value > 1, assume it's already a percentage or raw score
-                    // If value <= 1, multiply by 100 to convert to percentage
-                    const normalizeMetric = (val: number) => {
-                        if (val <= 0) return 0;
-                        if (val > 1) return Math.min(Math.round(val), 100);
-                        return Math.round(val * 100);
-                    };
-
-                    const perfData = [
-                        {
-                            subject: "RMSE (Inv)",
-                            // RMSE is on 1-10 scale. Normalize to 0-100 where 100 is best (0 error).
-                            // Formula: (1 - RMSE/10) * 100
-                            contentBased: Math.round(Math.max(0, (1 - getRaw("content", "rmse") / 10) * 100)),
-                            itemBased: Math.round(Math.max(0, (1 - getRaw("item", "rmse") / 10) * 100)),
-                            userBased: Math.round(Math.max(0, (1 - getRaw("user", "rmse") / 10) * 100)),
-                            hybrid: Math.round(Math.max(0, (1 - getRaw("hybrid", "rmse") / 10) * 100)),
-                        },
-                        {
-                            subject: "Precision",
-                            contentBased: normalizeMetric(getRaw("content", "precision_k")),
-                            itemBased: normalizeMetric(getRaw("item", "precision_k")),
-                            userBased: normalizeMetric(getRaw("user", "precision_k")),
-                            hybrid: normalizeMetric(getRaw("hybrid", "precision_k")),
-                        },
-                        {
-                            subject: "Recall",
-                            contentBased: normalizeMetric(getRaw("content", "recall_k")),
-                            itemBased: normalizeMetric(getRaw("item", "recall_k")),
-                            userBased: normalizeMetric(getRaw("user", "recall_k")),
-                            hybrid: normalizeMetric(getRaw("hybrid", "recall_k")),
-                        },
-                        {
-                            subject: "F1-Score",
-                            contentBased: normalizeMetric(getRaw("content", "f1_k")),
-                            itemBased: normalizeMetric(getRaw("item", "f1_k")),
-                            userBased: normalizeMetric(getRaw("user", "f1_k")),
-                            hybrid: normalizeMetric(getRaw("hybrid", "f1_k")),
-                        },
-                        {
-                            subject: "NDCG",
-                            contentBased: normalizeMetric(getRaw("content", "ndcg_k")),
-                            itemBased: normalizeMetric(getRaw("item", "ndcg_k")),
-                            userBased: normalizeMetric(getRaw("user", "ndcg_k")),
-                            hybrid: normalizeMetric(getRaw("hybrid", "ndcg_k")),
-                        },
-                    ];
-                    setModelPerformance(perfData);
+                    // Transform to simple array for table display
+                    const tableData = models.map((m) => ({
+                        name: m.model_name,
+                        rmse: m.rmse || 0,
+                        mae: m.mae || 0,
+                        precision: m.precision_k || 0,
+                        recall: m.recall_k || 0,
+                        f1: m.f1_k || 0,
+                        ndcg: m.ndcg_k || 0,
+                    }));
+                    setModelPerformance(tableData);
                 }
             } catch (err) {
                 console.error("Failed to fetch charts data", err);
