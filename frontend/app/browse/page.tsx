@@ -17,8 +17,9 @@ import { api, Anime } from "@/lib/api";
 export default function BrowsePage() {
     const searchParams = useSearchParams();
     const initialSort = searchParams.get("sort") || "rating";
+    const initialQuery = searchParams.get("q") || "";
 
-    const [searchQuery, setSearchQuery] = useState("");
+    const [searchQuery, setSearchQuery] = useState(initialQuery);
     const [sortBy, setSortBy] = useState(initialSort);
     const [animeList, setAnimeList] = useState<Anime[]>([]);
     const [recommendations, setRecommendations] = useState<Anime[]>([]);
