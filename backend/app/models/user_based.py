@@ -19,7 +19,7 @@ class UserBasedRecommender(BaseRecommender):
     User-based collaborative filtering using user-user similarity.
     """
     
-    def __init__(self, k_neighbors: int = 20):
+    def __init__(self, k_neighbors: int = 50):
         super().__init__("User-Based Collaborative Filtering")
         self.k_neighbors = k_neighbors
         self.rating_matrix: csr_matrix = None
@@ -83,13 +83,14 @@ class UserBasedRecommender(BaseRecommender):
             where=user_counts > 0
         )
         
-        # Calculate user-user similarity (only if dataset is small enough)
-        if n_users <= 5000:
+        # Calculate user-user similarity (increase threshold for larger datasets)
+        if n_users <= 20000:
+            logger.info(f"Computing user similarity matrix ({n_users}x{n_users})...")
             self.user_similarity = cosine_similarity(self.rating_matrix, dense_output=False)
             logger.info("Computed full user similarity matrix")
         else:
             self.user_similarity = None
-            logger.info("Dataset too large for full similarity matrix, will compute on-demand")
+            logger.warning(f"Dataset too large ({n_users} users) for full similarity matrix, will compute on-demand")
         
         self.is_fitted = True
         logger.info("User-based model fitted successfully")
@@ -97,12 +98,14 @@ class UserBasedRecommender(BaseRecommender):
         return self
     
     def _get_user_similarities(self, user_idx: int) -> np.ndarray:
-        """Get similarities for a specific user."""
+        """Get similarities for a specific user using sparse operations."""
         if self.user_similarity is not None:
-            return self.user_similarity[user_idx].toarray().flatten()
+            # Sử dụng getrow() để lấy sparse row, chỉ convert khi cần
+            return self.user_similarity.getrow(user_idx).toarray().ravel()
         else:
-            user_vector = self.rating_matrix[user_idx]
-            return cosine_similarity(user_vector, self.rating_matrix).flatten()
+            # Compute on-demand với sparse input
+            user_vector = self.rating_matrix.getrow(user_idx)
+            return cosine_similarity(user_vector, self.rating_matrix).ravel()
     
     def predict(self, user_id: int, n: int = 10) -> List[int]:
         """
@@ -122,10 +125,10 @@ class UserBasedRecommender(BaseRecommender):
             return []
         
         user_idx = self.user_id_to_idx[user_id]
-        user_ratings = self.rating_matrix[user_idx].toarray().flatten()
         
-        # Items the user has rated
-        rated_items = set(np.where(user_ratings > 0)[0])
+        # Sử dụng sparse row trực tiếp - tránh toarray()
+        user_ratings_sparse = self.rating_matrix.getrow(user_idx)
+        rated_items = set(user_ratings_sparse.indices)  # Chỉ lấy non-zero indices
         
         # Get similar users
         similarities = self._get_user_similarities(user_idx)
@@ -133,7 +136,7 @@ class UserBasedRecommender(BaseRecommender):
         # Get top-k similar users (excluding self)
         similar_users_idx = similarities.argsort()[::-1][1:self.k_neighbors + 1]
         
-        # Aggregate ratings from similar users
+        # Aggregate ratings from similar users using sparse operations
         predictions = {}
         
         for sim_user_idx in similar_users_idx:
@@ -141,16 +144,19 @@ class UserBasedRecommender(BaseRecommender):
             if sim <= 0:
                 continue
             
-            sim_user_ratings = self.rating_matrix[sim_user_idx].toarray().flatten()
+            # Sử dụng sparse row thay vì toarray() - tiết kiệm bộ nhớ đáng kể
+            sim_user_sparse = self.rating_matrix.getrow(sim_user_idx)
             
-            for item_idx in np.where(sim_user_ratings > 0)[0]:
+            # Iterate chỉ qua non-zero elements (indices và data)
+            for idx, item_idx in enumerate(sim_user_sparse.indices):
                 if item_idx in rated_items:
                     continue
                 
+                rating = sim_user_sparse.data[idx]
                 if item_idx not in predictions:
-                    predictions[item_idx] = {'weighted_sum': 0, 'sim_sum': 0}
+                    predictions[item_idx] = {'weighted_sum': 0.0, 'sim_sum': 0.0}
                 
-                predictions[item_idx]['weighted_sum'] += sim * sim_user_ratings[item_idx]
+                predictions[item_idx]['weighted_sum'] += sim * rating
                 predictions[item_idx]['sim_sum'] += sim
         
         # Calculate predicted ratings
@@ -181,14 +187,15 @@ class UserBasedRecommender(BaseRecommender):
         similarities = self._get_user_similarities(user_idx)
         similar_users_idx = similarities.argsort()[::-1][1:self.k_neighbors + 1]
         
-        weighted_sum = 0
-        sim_sum = 0
+        weighted_sum = 0.0
+        sim_sum = 0.0
         
         for sim_user_idx in similar_users_idx:
             sim = similarities[sim_user_idx]
             if sim <= 0:
                 continue
             
+            # Truy cập trực tiếp từ sparse matrix - hiệu quả hơn
             sim_user_rating = self.rating_matrix[sim_user_idx, item_idx]
             if sim_user_rating > 0:
                 weighted_sum += sim * sim_user_rating

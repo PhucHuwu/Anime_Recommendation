@@ -210,13 +210,13 @@ def diversity(recommended: List[int], item_features: Dict[int, List[str]]) -> fl
 class Evaluator:
     """Evaluator class to assess recommendation model performance."""
     
-    def __init__(self, k: int = 10, threshold: float = 7.0):
+    def __init__(self, k: int = 20, threshold: float = 7.0):
         """
         Initialize evaluator.
         
         Args:
-            k: Number of recommendations for @K metrics
-            threshold: Rating threshold to consider as "relevant"
+            k: Number of recommendations for @K metrics (default: 20)
+            threshold: Rating threshold to consider as "relevant" (default: 7.0)
         """
         self.k = k
         self.threshold = threshold

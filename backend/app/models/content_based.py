@@ -81,9 +81,9 @@ class ContentBasedRecommender(BaseRecommender):
         
         idx = self.anime_id_to_idx[anime_id]
         
-        # Calculate cosine similarity
-        anime_vector = self.tfidf_matrix[idx]
-        similarities = cosine_similarity(anime_vector, self.tfidf_matrix).flatten()
+        # Sử dụng getrow() để giữ sparse format - hiệu quả hơn
+        anime_vector = self.tfidf_matrix.getrow(idx)
+        similarities = cosine_similarity(anime_vector, self.tfidf_matrix).ravel()
         
         # Get top N similar (excluding self)
         similar_indices = similarities.argsort()[::-1][1:n+1]

@@ -19,9 +19,10 @@ class ItemBasedRecommender(BaseRecommender):
     Item-based collaborative filtering using user-item rating matrix.
     """
     
-    def __init__(self, k_neighbors: int = 20):
+    def __init__(self, k_neighbors: int = 50, popularity_weight: float = 0.3):
         super().__init__("Item-Based Collaborative Filtering")
         self.k_neighbors = k_neighbors
+        self.popularity_weight = popularity_weight  # Weight for popularity bias
         self.item_similarity: np.ndarray = None
         self.rating_matrix: csr_matrix = None
         self.user_id_to_idx: Dict[int, int] = {}
@@ -81,15 +82,16 @@ class ItemBasedRecommender(BaseRecommender):
             where=item_counts > 0
         )
         
-        # Calculate item-item similarity (only if dataset is small enough)
-        if n_items <= 5000:
+        # Calculate item-item similarity (increase threshold for larger datasets)
+        if n_items <= 15000:
+            logger.info(f"Computing item similarity matrix ({n_items}x{n_items})...")
             # Transpose to get items x users
             item_user_matrix = self.rating_matrix.T.tocsr()
             self.item_similarity = cosine_similarity(item_user_matrix, dense_output=False)
             logger.info("Computed full item similarity matrix")
         else:
             self.item_similarity = None
-            logger.info("Dataset too large for full similarity matrix, will compute on-demand")
+            logger.warning(f"Dataset too large ({n_items} items) for full similarity matrix, will compute on-demand")
         
         self.is_fitted = True
         logger.info("Item-based model fitted successfully")
@@ -97,13 +99,14 @@ class ItemBasedRecommender(BaseRecommender):
         return self
     
     def _get_item_similarities(self, item_idx: int) -> np.ndarray:
-        """Get similarities for a specific item."""
+        """Get similarities for a specific item using sparse operations."""
         if self.item_similarity is not None:
-            return self.item_similarity[item_idx].toarray().flatten()
+            # Sử dụng getrow() để lấy sparse row, chỉ convert khi cần
+            return self.item_similarity.getrow(item_idx).toarray().ravel()
         else:
-            # Compute on-demand
-            item_vector = self.rating_matrix.T[item_idx]
-            return cosine_similarity(item_vector, self.rating_matrix.T).flatten()
+            # Compute on-demand với sparse input
+            item_vector = self.rating_matrix.T.getrow(item_idx)
+            return cosine_similarity(item_vector, self.rating_matrix.T).ravel()
     
     def predict(self, user_id: int, n: int = 10) -> List[int]:
         """
@@ -123,36 +126,77 @@ class ItemBasedRecommender(BaseRecommender):
             return []
         
         user_idx = self.user_id_to_idx[user_id]
-        user_ratings = self.rating_matrix[user_idx].toarray().flatten()
         
-        # Items the user has rated
-        rated_items = np.where(user_ratings > 0)[0]
+        # Sử dụng sparse operations - tránh toarray()
+        user_ratings_sparse = self.rating_matrix.getrow(user_idx)
+        rated_indices = user_ratings_sparse.indices
+        rated_values = user_ratings_sparse.data
         
-        if len(rated_items) == 0:
+        if len(rated_indices) == 0:
             return []
         
-        # Calculate predicted ratings for unrated items
+        # TốI ƯU QUAN TRỌNG: Đảo ngược logic - iterate qua RATED items
+        # thay vì iterate qua TẤT CẢ items
+        # Độ phức tạp: O(rated × k_neighbors) thay vì O(n_items)
         n_items = len(self.anime_id_to_idx)
         predictions = np.zeros(n_items)
+        sim_sums = np.zeros(n_items)
         
-        for item_idx in range(n_items):
-            if user_ratings[item_idx] > 0:
-                continue  # Skip already rated
-            
-            similarities = self._get_item_similarities(item_idx)
-            
-            # Get top-k similar items that user has rated
-            rated_sims = [(i, similarities[i]) for i in rated_items if similarities[i] > 0]
-            rated_sims.sort(key=lambda x: x[1], reverse=True)
-            top_k = rated_sims[:self.k_neighbors]
-            
-            if top_k:
-                numerator = sum(sim * user_ratings[idx] for idx, sim in top_k)
-                denominator = sum(sim for _, sim in top_k)
-                if denominator > 0:
-                    predictions[item_idx] = numerator / denominator
+        rated_set = set(rated_indices)
         
-        # Get top N recommendations
+        # Với mỗi item user đã rate, tìm similar items và tích lũy
+        for i, rated_idx in enumerate(rated_indices):
+            user_rating = rated_values[i]
+            
+            if self.item_similarity is not None:
+                # Lấy sparse row từ similarity matrix
+                sim_row = self.item_similarity.getrow(rated_idx)
+                similar_indices = sim_row.indices
+                similar_values = sim_row.data
+                
+                # Chỉ lấy top-k neighbors nếu cần
+                if len(similar_indices) > self.k_neighbors:
+                    top_k_positions = similar_values.argsort()[::-1][:self.k_neighbors]
+                    similar_indices = similar_indices[top_k_positions]
+                    similar_values = similar_values[top_k_positions]
+                
+                # Tích lũy weighted sum cho mỗi similar item
+                for j, sim_idx in enumerate(similar_indices):
+                    if sim_idx in rated_set:
+                        continue  # Bỏ qua items đã rate
+                    sim = similar_values[j]
+                    if sim > 0:
+                        predictions[sim_idx] += sim * user_rating
+                        sim_sums[sim_idx] += sim
+            else:
+                # Compute similarity on-demand
+                similarities = self._get_item_similarities(rated_idx)
+                top_k_idx = similarities.argsort()[::-1][:self.k_neighbors]
+                
+                for sim_idx in top_k_idx:
+                    if sim_idx in rated_set:
+                        continue
+                    sim = similarities[sim_idx]
+                    if sim > 0:
+                        predictions[sim_idx] += sim * user_rating
+                        sim_sums[sim_idx] += sim
+        
+        # Normalize predictions
+        valid_mask = sim_sums > 0
+        predictions[valid_mask] /= sim_sums[valid_mask]
+        
+        # Add popularity bias to boost popular items (improves P@K)
+        if self.popularity_weight > 0:
+            item_popularity = np.array(self.rating_matrix.sum(axis=0)).flatten()
+            if item_popularity.max() > 0:
+                item_popularity = item_popularity / item_popularity.max()  # Normalize 0-1
+                # Blend: (1-weight) * similarity + weight * popularity
+                max_pred = predictions.max() if predictions.max() > 0 else 1.0
+                sim_weight = 1.0 - self.popularity_weight
+                predictions[valid_mask] = sim_weight * predictions[valid_mask] + self.popularity_weight * item_popularity[valid_mask] * max_pred
+        
+        # Get top N (exclude items đã rate)
+        predictions[rated_indices] = 0
         top_indices = predictions.argsort()[::-1][:n]
         return [self.idx_to_anime_id[idx] for idx in top_indices if predictions[idx] > 0]
     
@@ -169,22 +213,31 @@ class ItemBasedRecommender(BaseRecommender):
         user_idx = self.user_id_to_idx[user_id]
         item_idx = self.anime_id_to_idx[anime_id]
         
-        user_ratings = self.rating_matrix[user_idx].toarray().flatten()
-        rated_items = np.where(user_ratings > 0)[0]
+        # Sử dụng sparse operations
+        user_ratings_sparse = self.rating_matrix.getrow(user_idx)
+        rated_indices = user_ratings_sparse.indices
+        rated_values = user_ratings_sparse.data
         
-        if len(rated_items) == 0:
+        if len(rated_indices) == 0:
             return self.item_means[item_idx]
         
+        # Lấy similarities cho target item
         similarities = self._get_item_similarities(item_idx)
         
-        rated_sims = [(i, similarities[i]) for i in rated_items if similarities[i] > 0]
+        # Tìm top-k similar items mà user đã rate
+        rated_sims = []
+        for i, rated_idx in enumerate(rated_indices):
+            sim = similarities[rated_idx]
+            if sim > 0:
+                rated_sims.append((rated_values[i], sim))
+        
         rated_sims.sort(key=lambda x: x[1], reverse=True)
         top_k = rated_sims[:self.k_neighbors]
         
         if not top_k:
             return self.item_means[item_idx]
         
-        numerator = sum(sim * user_ratings[idx] for idx, sim in top_k)
+        numerator = sum(sim * rating for rating, sim in top_k)
         denominator = sum(sim for _, sim in top_k)
         
         if denominator > 0:
