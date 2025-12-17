@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, Film, Star, TrendingUp, Activity, Database, Settings, BarChart3, RefreshCw, Loader2 } from "lucide-react";
+import { Users, Film, Star, TrendingUp, Activity, Database, BarChart3, RefreshCw, Loader2 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { PieChart } from "@/components/charts/pie-chart";
 import { LineChart } from "@/components/charts/line-chart";
@@ -206,18 +206,12 @@ export default function AdminPage() {
                             <h1 className="text-3xl md:text-4xl font-bold text-gradient">Admin Dashboard</h1>
                             <p className="text-muted-foreground mt-2">Monitor system performance and manage models</p>
                         </div>
-                        <div className="flex gap-2">
-                            <Button variant="outline" size="lg" asChild>
-                                <Link href="/admin/charts">
-                                    <BarChart3 className="mr-2 h-5 w-5" />
-                                    View Charts
-                                </Link>
-                            </Button>
-                            <Button className="anime-gradient" size="lg">
-                                <Settings className="mr-2 h-5 w-5" />
-                                Settings
-                            </Button>
-                        </div>
+                        <Button variant="outline" size="lg" asChild>
+                            <Link href="/admin/charts">
+                                <BarChart3 className="mr-2 h-5 w-5" />
+                                View Charts
+                            </Link>
+                        </Button>
                     </div>
 
                     {/* Stats Cards */}
