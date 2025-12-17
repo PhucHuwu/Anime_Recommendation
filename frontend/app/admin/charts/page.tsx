@@ -6,8 +6,7 @@ import { Footer } from "@/components/footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart } from "@/components/charts/pie-chart";
 import { BarChart } from "@/components/charts/bar-chart";
-import { Button } from "@/components/ui/button";
-import { Download, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { api } from "@/lib/api";
 
 export default function AdminChartsPage() {
@@ -108,15 +107,9 @@ export default function AdminChartsPage() {
             <main className="flex-1 container mx-auto px-4 py-8">
                 <div className="space-y-8">
                     {/* Header */}
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-3xl md:text-4xl font-bold text-gradient">Data Visualization</h1>
-                            <p className="text-muted-foreground mt-2">Advanced analytics and insights</p>
-                        </div>
-                        <Button className="anime-gradient" size="lg">
-                            <Download className="mr-2 h-5 w-5" />
-                            Export Report
-                        </Button>
+                    <div>
+                        <h1 className="text-3xl md:text-4xl font-bold text-gradient">Data Visualization</h1>
+                        <p className="text-muted-foreground mt-2">Advanced analytics and insights</p>
                     </div>
 
                     {/* Charts Grid */}
