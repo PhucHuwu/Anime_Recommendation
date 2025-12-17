@@ -27,7 +27,7 @@ export interface UserProfile {
     user_id: number;
     total_ratings: number;
     average_rating: number;
-    favorite_genres: string[];
+    favorite_genres: { genre: string; count: number; percentage: number }[];
     rating_distribution: Record<number, number>;
 }
 

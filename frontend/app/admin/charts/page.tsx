@@ -200,35 +200,17 @@ export default function AdminChartsPage() {
                                 <RadarChart
                                     data={modelPerformance}
                                     datasets={[
-                                        { dataKey: "contentBased", color: "hsl(var(--chart-1))", name: "Content-Based" },
-                                        { dataKey: "itemBased", color: "hsl(var(--chart-2))", name: "Item-Based CF" },
-                                        { dataKey: "userBased", color: "hsl(var(--chart-3))", name: "User-Based CF" },
-                                        { dataKey: "hybrid", color: "hsl(var(--chart-4))", name: "Hybrid" },
+                                        { dataKey: "contentBased", color: "var(--chart-1)", name: "Content-Based" },
+                                        { dataKey: "itemBased", color: "var(--chart-2)", name: "Item-Based CF" },
+                                        { dataKey: "userBased", color: "var(--chart-3)", name: "User-Based CF" },
+                                        { dataKey: "hybrid", color: "var(--chart-4)", name: "Hybrid" },
                                     ]}
                                 />
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Summary Stats - Calculated from real data */}
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <Card className="border-2 border-accent/20 bg-accent/5">
-                            <CardContent className="pt-6">
-                                <div className="text-3xl font-bold text-accent">
-                                    {modelPerformance.length > 0 ? modelPerformance.find((p) => p.subject === "Precision")?.hybrid + "%" : "0%"}
-                                </div>
-                                <p className="text-sm text-muted-foreground mt-1">Best Precision (Hybrid)</p>
-                            </CardContent>
-                        </Card>
-                        <Card className="border-2 border-chart-4/20 bg-chart-4/5">
-                            <CardContent className="pt-6">
-                                <div className="text-3xl font-bold" style={{ color: "hsl(var(--chart-4))" }}>
-                                    {modelPerformance.length > 0 ? (100 - modelPerformance.find((p) => p.subject === "RMSE (Inv)")?.hybrid) / 100 : "0"}
-                                </div>
-                                <p className="text-sm text-muted-foreground mt-1">Best RMSE (Hybrid)</p>
-                            </CardContent>
-                        </Card>
-                    </div>
+                    {/* Removed Summary Cards */}
                 </div>
             </main>
 

@@ -36,22 +36,9 @@ export default function ProfilePage() {
             const profileData = await api.getUserProfile(parseInt(uid));
             setProfile(profileData);
 
-            // Calculate genre stats from favorite_genres
+            // Set genre stats directly from profile data
             if (profileData.favorite_genres) {
-                const total = profileData.favorite_genres.length;
-                const genreCounts: Record<string, number> = {};
-                profileData.favorite_genres.forEach((g) => {
-                    genreCounts[g] = (genreCounts[g] || 0) + 1;
-                });
-                const stats = Object.entries(genreCounts)
-                    .map(([genre, count]) => ({
-                        genre,
-                        count,
-                        percentage: Math.round((count / total) * 100),
-                    }))
-                    .sort((a, b) => b.count - a.count)
-                    .slice(0, 5);
-                setGenreStats(stats);
+                setGenreStats(profileData.favorite_genres);
             }
 
             // Fetch user ratings
