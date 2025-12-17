@@ -1,17 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { AnimeCard } from "@/components/anime-card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Sparkles, TrendingUp, Heart, Zap, ChevronRight, Loader2 } from "lucide-react";
+import { Sparkles, TrendingUp, Heart, ChevronRight, Loader2 } from "lucide-react";
+import { AnimeGridPagination } from "@/components/anime-grid-pagination";
 import { api, Anime } from "@/lib/api";
-
-// Genre list for browse buttons
-const genres = ["Action", "Adventure", "Comedy", "Drama", "Fantasy", "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life"];
 
 export default function HomePage() {
     const [userId, setUserId] = useState<string | null>(null);
@@ -37,21 +33,21 @@ export default function HomePage() {
             // Fetch recommendations
             if (storedUserId) {
                 try {
-                    const recData = await api.getRecommendations(parseInt(storedUserId), 5);
+                    const recData = await api.getRecommendations(parseInt(storedUserId), 20);
                     setRecommendations(recData.items);
                 } catch {
                     // Fallback to popular if user recommendations fail
-                    const popularData = await api.getPopularAnime(5);
+                    const popularData = await api.getPopularAnime(20);
                     setRecommendations(popularData.items);
                 }
             } else {
                 // No user logged in, show popular
-                const popularData = await api.getPopularAnime(5);
+                const popularData = await api.getPopularAnime(20);
                 setRecommendations(popularData.items);
             }
 
             // Fetch top anime
-            const topData = await api.getTopAnime(5);
+            const topData = await api.getTopAnime(20);
             setTopAnime(topData);
         } catch (err) {
             setError(err instanceof Error ? err.message : "Failed to load data");
@@ -122,27 +118,13 @@ export default function HomePage() {
                             </Button>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-                            {loading ? (
-                                <div className="col-span-full flex justify-center py-8">
-                                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                                </div>
-                            ) : recommendations.length > 0 ? (
-                                recommendations.map((anime) => (
-                                    <AnimeCard
-                                        key={anime.anime_id}
-                                        id={anime.anime_id}
-                                        name={anime.name}
-                                        rating={anime.rating}
-                                        genres={anime.genre}
-                                        type={anime.type}
-                                        episodes={anime.episodes}
-                                    />
-                                ))
-                            ) : (
-                                <div className="col-span-full text-center py-8 text-muted-foreground">No recommendations available</div>
-                            )}
-                        </div>
+                        {loading ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : (
+                            <AnimeGridPagination items={recommendations} emptyMessage="No recommendations available" />
+                        )}
                     </div>
                 </section>
 
@@ -167,55 +149,13 @@ export default function HomePage() {
                             </Button>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-                            {loading ? (
-                                <div className="col-span-full flex justify-center py-8">
-                                    <Loader2 className="h-8 w-8 animate-spin text-secondary" />
-                                </div>
-                            ) : topAnime.length > 0 ? (
-                                topAnime.map((anime) => (
-                                    <AnimeCard
-                                        key={anime.anime_id}
-                                        id={anime.anime_id}
-                                        name={anime.name}
-                                        rating={anime.rating}
-                                        genres={anime.genre}
-                                        type={anime.type}
-                                        episodes={anime.episodes}
-                                    />
-                                ))
-                            ) : (
-                                <div className="col-span-full text-center py-8 text-muted-foreground">No top anime available</div>
-                            )}
-                        </div>
-                    </div>
-                </section>
-
-                {/* Browse by Genre Section */}
-                <section className="py-12 px-4 bg-muted/30">
-                    <div className="container mx-auto space-y-6">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-accent/10 rounded-lg">
-                                <Zap className="h-6 w-6 text-accent" />
+                        {loading ? (
+                            <div className="flex justify-center py-8">
+                                <Loader2 className="h-8 w-8 animate-spin text-secondary" />
                             </div>
-                            <div>
-                                <h2 className="text-2xl md:text-3xl font-bold">Browse by Genre</h2>
-                                <p className="text-sm text-muted-foreground">Find anime that matches your mood</p>
-                            </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3">
-                            {genres.map((genre) => (
-                                <Link key={genre} href={`/browse?genre=${genre}`}>
-                                    <Badge
-                                        variant="outline"
-                                        className="px-6 py-3 text-base cursor-pointer hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-300"
-                                    >
-                                        {genre}
-                                    </Badge>
-                                </Link>
-                            ))}
-                        </div>
+                        ) : (
+                            <AnimeGridPagination items={topAnime} emptyMessage="No top anime available" />
+                        )}
                     </div>
                 </section>
 

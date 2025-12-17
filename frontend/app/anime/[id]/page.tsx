@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Calendar, Clock, TrendingUp, Users, Sparkles, Heart, Plus, Loader2 } from "lucide-react";
+import { AnimeGridPagination } from "@/components/anime-grid-pagination";
 import { api, AnimeDetail, Anime } from "@/lib/api";
 
 interface ExtendedAnimeDetail extends AnimeDetail {
@@ -67,7 +68,7 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
             });
 
             // Fetch similar anime
-            const similarData = await api.getSimilarAnime(parseInt(id), 5);
+            const similarData = await api.getSimilarAnime(parseInt(id), 20);
             setSimilarAnime(similarData.items);
         } catch (err) {
             console.error("Failed to fetch anime:", err);
@@ -301,23 +302,7 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
                             <h2 className="text-2xl md:text-3xl font-bold">You might also like</h2>
                         </div>
 
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 md:gap-6">
-                            {similarAnime.length > 0 ? (
-                                similarAnime.map((item) => (
-                                    <AnimeCard
-                                        key={item.anime_id}
-                                        id={item.anime_id}
-                                        name={item.name}
-                                        rating={item.rating}
-                                        genres={item.genre}
-                                        type={item.type}
-                                        episodes={item.episodes}
-                                    />
-                                ))
-                            ) : (
-                                <p className="col-span-full text-center text-muted-foreground">No similar anime found</p>
-                            )}
-                        </div>
+                        <AnimeGridPagination items={similarAnime} emptyMessage="No similar anime found" />
 
                         <div className="text-center pt-4">
                             <Button variant="outline" size="lg" asChild>

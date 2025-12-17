@@ -107,19 +107,19 @@ export const api = {
     // ==========================================
     // RECOMMENDATIONS
     // ==========================================
-    getRecommendations: async (userId: number, n: number = 10, model: string = "hybrid") => {
+    getRecommendations: async (userId: number, n: number = 20, model: string = "hybrid") => {
         return fetchAPI<{ items: Anime[]; model: string; user_id: number }>(`/api/recommendations?user_id=${userId}&n=${n}&model=${model}`);
     },
 
-    getSimilarAnime: async (animeId: number, n: number = 10) => {
+    getSimilarAnime: async (animeId: number, n: number = 20) => {
         return fetchAPI<{ items: Anime[]; model: string }>(`/api/recommendations/similar/${animeId}?n=${n}`);
     },
 
-    getPopularAnime: async (n: number = 10) => {
+    getPopularAnime: async (n: number = 20) => {
         return fetchAPI<{ items: Anime[]; model: string }>(`/api/recommendations/popular?n=${n}`);
     },
 
-    getRealtimeRecommendations: async (userId: number, contextAnimeId?: number, n: number = 5) => {
+    getRealtimeRecommendations: async (userId: number, contextAnimeId?: number, n: number = 20) => {
         const params = new URLSearchParams({
             user_id: userId.toString(),
             n: n.toString(),
@@ -137,7 +137,6 @@ export const api = {
         page: number = 1,
         pageSize: number = 20,
         options?: {
-            genre?: string;
             type?: string;
             sort?: string;
             order?: string;
@@ -147,7 +146,6 @@ export const api = {
             page: page.toString(),
             page_size: pageSize.toString(),
         });
-        if (options?.genre) params.append("genre", options.genre);
         if (options?.type) params.append("type", options.type);
         if (options?.sort) params.append("sort", options.sort);
         if (options?.order) params.append("order", options.order);
@@ -165,16 +163,12 @@ export const api = {
         return fetchAPI<Anime[]>(`/api/anime/search?q=${encodeURIComponent(query)}&limit=${limit}`);
     },
 
-    getTopAnime: async (n: number = 10, by: string = "rating") => {
+    getTopAnime: async (n: number = 20, by: string = "rating") => {
         return fetchAPI<Anime[]>(`/api/anime/top?n=${n}&by=${by}`);
     },
 
     getAnimeDetail: async (animeId: number) => {
         return fetchAPI<AnimeDetail>(`/api/anime/${animeId}`);
-    },
-
-    getGenres: async () => {
-        return fetchAPI<string[]>("/api/anime/genres");
     },
 
     // ==========================================

@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { AnimeCard } from "@/components/anime-card";
+import { SidebarAnimeList } from "@/components/sidebar-anime-list";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,12 +15,10 @@ import { api, Anime } from "@/lib/api";
 
 export default function BrowsePage() {
     const searchParams = useSearchParams();
-    const initialGenre = searchParams.get("genre") || "";
     const initialSort = searchParams.get("sort") || "rating";
 
     const [searchQuery, setSearchQuery] = useState("");
     const [sortBy, setSortBy] = useState(initialSort);
-    const [genre, setGenre] = useState(initialGenre);
     const [animeList, setAnimeList] = useState<Anime[]>([]);
     const [recommendations, setRecommendations] = useState<Anime[]>([]);
     const [trending, setTrending] = useState<Anime[]>([]);
@@ -40,7 +39,6 @@ export default function BrowsePage() {
             } else {
                 // Browse mode with pagination
                 const data = await api.getAnimeList(page, 20, {
-                    genre: genre || undefined,
                     sort: sortBy,
                     order: "desc",
                 });
@@ -54,7 +52,7 @@ export default function BrowsePage() {
         } finally {
             setLoading(false);
         }
-    }, [page, sortBy, genre, searchQuery]);
+    }, [page, sortBy, searchQuery]);
 
     const fetchSidebarData = useCallback(async () => {
         try {
@@ -66,14 +64,14 @@ export default function BrowsePage() {
             const userId = localStorage.getItem("user_id");
             if (userId) {
                 try {
-                    const recData = await api.getRecommendations(parseInt(userId), 5);
+                    const recData = await api.getRecommendations(parseInt(userId), 20);
                     setRecommendations(recData.items);
                 } catch {
-                    const popularData = await api.getPopularAnime(5);
+                    const popularData = await api.getPopularAnime(20);
                     setRecommendations(popularData.items);
                 }
             } else {
-                const popularData = await api.getPopularAnime(5);
+                const popularData = await api.getPopularAnime(20);
                 setRecommendations(popularData.items);
             }
         } catch (err) {
@@ -216,33 +214,7 @@ export default function BrowsePage() {
                                 <h2 className="text-xl font-bold">Recommended for You</h2>
                             </div>
                             <div className="space-y-3">
-                                {recommendations.length > 0 ? (
-                                    recommendations.map((anime) => (
-                                        <Link
-                                            key={anime.anime_id}
-                                            href={`/anime/${anime.anime_id}`}
-                                            className="block p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors group"
-                                        >
-                                            <h3 className="font-semibold group-hover:text-primary transition-colors line-clamp-1">{anime.name}</h3>
-                                            <div className="flex items-center justify-between mt-2 text-sm">
-                                                <div className="flex items-center gap-1 text-yellow-500">
-                                                    <Star className="h-3.5 w-3.5 fill-current" />
-                                                    <span className="font-medium">{anime.rating?.toFixed(1)}</span>
-                                                </div>
-                                                <span className="text-muted-foreground">{anime.type}</span>
-                                            </div>
-                                            <div className="flex flex-wrap gap-1 mt-2">
-                                                {anime.genre?.slice(0, 2).map((g) => (
-                                                    <span key={g} className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                                                        {g}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </Link>
-                                    ))
-                                ) : (
-                                    <p className="text-sm text-muted-foreground">Loading...</p>
-                                )}
+                                <SidebarAnimeList items={recommendations} />
                             </div>
                         </div>
 

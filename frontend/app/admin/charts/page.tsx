@@ -6,11 +6,9 @@ import { Footer } from "@/components/footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart } from "@/components/charts/pie-chart";
 import { BarChart } from "@/components/charts/bar-chart";
-import { LineChart } from "@/components/charts/line-chart";
-import { AreaChart } from "@/components/charts/area-chart";
 import { RadarChart } from "@/components/charts/radar-chart";
 import { Button } from "@/components/ui/button";
-import { Download, TrendingUp, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { api, ModelMetrics } from "@/lib/api";
 
 export default function AdminChartsPage() {
@@ -18,9 +16,6 @@ export default function AdminChartsPage() {
     const [genreData, setGenreData] = useState<{ name: string; value: number }[]>([]);
     const [typeData, setTypeData] = useState<{ name: string; value: number }[]>([]);
     const [ratingDistribution, setRatingDistribution] = useState<{ name: string; value: number }[]>([]);
-    const [userActivity, setUserActivity] = useState<{ name: string; users: number; ratings: number }[]>([]);
-    // Using mock for monthly growth for now as API doesn't return it yet, or derive from activity
-    const [monthlyGrowth, setMonthlyGrowth] = useState<{ name: string; value: number }[]>([]);
     const [modelPerformance, setModelPerformance] = useState<any[]>([]);
 
     useEffect(() => {
@@ -70,36 +65,10 @@ export default function AdminChartsPage() {
                     setRatingDistribution(Object.entries(buckets).map(([name, value]) => ({ name, value })));
                 }
 
-                // Activity (Direct map or mock fallback if empty)
-                if (vizData.activity_timeline && vizData.activity_timeline.length > 0) {
-                    setUserActivity(vizData.activity_timeline);
-                    // Use activity for growth
-                    setMonthlyGrowth(
-                        vizData.activity_timeline.map((a: any) => ({
-                            name: a.name,
-                            value: a.users,
-                        }))
-                    );
-                } else {
-                    // Fallback to mock activity if API not ready
-                    const mockActivity = [
-                        { name: "Jan", users: 8000, ratings: 45000 },
-                        { name: "Feb", users: 9500, ratings: 52000 },
-                        { name: "Mar", users: 11000, ratings: 61000 },
-                        { name: "Apr", users: 10500, ratings: 58000 },
-                        { name: "May", users: 12000, ratings: 68000 },
-                        { name: "Jun", users: 12500, ratings: 72000 },
-                    ];
-                    setUserActivity(mockActivity);
-                    setMonthlyGrowth(mockActivity.map((a) => ({ name: a.name, value: a.users })));
-                }
-
                 // Fetch Models
                 const models = await api.getModels();
                 if (models && models.length > 0) {
                     // Create radar data: normalized metrics 0-100
-                    // We need to map models to keys (contentBased, itemBased, etc.) or just index
-                    // Let's rely on model name
                     const getData = (modelNamePart: string, metric: keyof ModelMetrics) => {
                         const m = models.find((m) => m.model_name.toLowerCase().includes(modelNamePart));
                         if (!m) return 0;
@@ -221,37 +190,6 @@ export default function AdminChartsPage() {
                             </CardContent>
                         </Card>
 
-                        {/* User Activity - Line Chart */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>User Activity</CardTitle>
-                                <CardDescription>Active users and ratings over time</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <LineChart
-                                    data={userActivity}
-                                    lines={[
-                                        { dataKey: "users", color: "hsl(var(--primary))", name: "Active Users" },
-                                        { dataKey: "ratings", color: "hsl(var(--secondary))", name: "Ratings" },
-                                    ]}
-                                />
-                            </CardContent>
-                        </Card>
-
-                        {/* Monthly Growth - Area Chart */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <TrendingUp className="h-5 w-5 text-primary" />
-                                    Monthly Growth
-                                </CardTitle>
-                                <CardDescription>Active user growth trend</CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <AreaChart data={monthlyGrowth} />
-                            </CardContent>
-                        </Card>
-
                         {/* Model Performance - Radar Chart */}
                         <Card>
                             <CardHeader>
@@ -273,23 +211,7 @@ export default function AdminChartsPage() {
                     </div>
 
                     {/* Summary Stats - Calculated from real data */}
-                    <div className="grid md:grid-cols-4 gap-4">
-                        <Card className="border-2 border-primary/20 bg-primary/5">
-                            <CardContent className="pt-6">
-                                <div className="text-3xl font-bold text-primary">
-                                    {userActivity.length > 0 ? userActivity[userActivity.length - 1].users.toLocaleString() : "0"}
-                                </div>
-                                <p className="text-sm text-muted-foreground mt-1">Total Active Users</p>
-                            </CardContent>
-                        </Card>
-                        <Card className="border-2 border-secondary/20 bg-secondary/5">
-                            <CardContent className="pt-6">
-                                <div className="text-3xl font-bold text-secondary">
-                                    {userActivity.length > 0 ? userActivity[userActivity.length - 1].ratings.toLocaleString() : "0"}
-                                </div>
-                                <p className="text-sm text-muted-foreground mt-1">Total Ratings</p>
-                            </CardContent>
-                        </Card>
+                    <div className="grid md:grid-cols-2 gap-4">
                         <Card className="border-2 border-accent/20 bg-accent/5">
                             <CardContent className="pt-6">
                                 <div className="text-3xl font-bold text-accent">

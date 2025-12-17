@@ -25,7 +25,6 @@ class AnimePaginatedResponse(BaseModel):
 async def get_anime_list(
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int = Query(20, ge=1, le=100, description="Items per page"),
-    genre: Optional[str] = Query(None, description="Filter by genre"),
     type: Optional[str] = Query(None, description="Filter by type (TV, Movie, OVA, etc.)"),
     sort: str = Query("rating", description="Sort by: rating, name, members"),
     order: str = Query("desc", description="Sort order: asc, desc")
@@ -39,8 +38,6 @@ async def get_anime_list(
         
         # Build query filter
         query = {}
-        if genre:
-            query["genre"] = {"$in": [genre]}
         if type:
             query["type"] = type
         
@@ -86,6 +83,7 @@ async def get_anime_list(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch anime: {str(e)}"
         )
+
 
 
 @router.get("/search", response_model=List[AnimeResponse])
@@ -165,34 +163,6 @@ async def get_top_anime(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch top anime: {str(e)}"
-        )
-
-
-@router.get("/genres", response_model=List[str])
-async def get_all_genres():
-    """
-    Get all unique genres from the database.
-    """
-    try:
-        db = Database.get_db()
-        collection = db[Collections.ANIMES]
-        
-        # Aggregate unique genres
-        pipeline = [
-            {"$unwind": "$genre"},
-            {"$group": {"_id": "$genre"}},
-            {"$sort": {"_id": 1}}
-        ]
-        
-        cursor = collection.aggregate(pipeline)
-        genres = [doc["_id"] async for doc in cursor]
-        
-        return genres
-    
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch genres: {str(e)}"
         )
 
 
