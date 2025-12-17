@@ -330,7 +330,7 @@ async def main(sample_size: int = None, test_ratio: float = 0.2):
         logger.info("TRAINING & EVALUATION COMPLETE!")
         logger.info("=" * 60)
         
-        print("\n📊 MODEL COMPARISON:")
+        print("\nMODEL COMPARISON:")
         print("-" * 70)
         print(f"{'Model':<35} {'RMSE':<8} {'MAE':<8} {'P@10':<8} {'R@10':<8}")
         print("-" * 70)
@@ -344,8 +344,8 @@ async def main(sample_size: int = None, test_ratio: float = 0.2):
               f"{hybrid_metrics['precision_k']:<8} {hybrid_metrics['recall_k']:<8}")
         print("-" * 70)
         
-        print(f"\n✅ Models saved to: {save_path}")
-        print("✅ Metrics saved to MongoDB")
+        print(f"\nModels saved to: {save_path}")
+        print("Metrics saved to MongoDB")
     
     finally:
         await Database.disconnect()
