@@ -1,0 +1,64 @@
+[{
+  "_id": {
+    "$oid": "6942f9ef2cb4926172c21943"
+  },
+  "model_name": "Content-Based Filtering",
+  "description": "Recommends based on anime features (genres) using TF-IDF and cosine similarity",
+  "f1_k": 0.0262,
+  "mae": 1.1029,
+  "ndcg_k": 0.0412,
+  "precision_k": 0.0265,
+  "recall_k": 0.0448,
+  "rmse": 1.41,
+  "trained_at": {
+    "$date": "2025-12-17T23:04:51.203Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "694300532cb4926172c21ae6"
+  },
+  "model_name": "Item-Based Collaborative Filtering",
+  "description": "Recommends based on item-item similarity using user rating patterns",
+  "mae": 0.9302,
+  "ndcg_k": 0.1386,
+  "precision_k": 0.0789,
+  "recall_k": 0.1494,
+  "rmse": 1.2432,
+  "trained_at": {
+    "$date": "2025-12-17T23:05:51.347Z"
+  },
+  "f1_k": 0.0794
+},
+{
+  "_id": {
+    "$oid": "694300532cb4926172c21ae8"
+  },
+  "model_name": "User-Based Collaborative Filtering",
+  "description": "Recommends based on similar user preferences using KNN",
+  "mae": 1.1471,
+  "ndcg_k": 0.0631,
+  "precision_k": 0.0275,
+  "recall_k": 0.108,
+  "rmse": 1.5021,
+  "trained_at": {
+    "$date": "2025-12-17T23:17:42.723Z"
+  },
+  "f1_k": 0.0351
+},
+{
+  "_id": {
+    "$oid": "694300532cb4926172c21aea"
+  },
+  "model_name": "Hybrid Model",
+  "description": "Combines Content-Based and Collaborative Filtering with weighted scoring",
+  "mae": 0.9946,
+  "ndcg_k": 0.1053,
+  "precision_k": 0.0559,
+  "recall_k": 0.1189,
+  "rmse": 1.2787,
+  "trained_at": {
+    "$date": "2025-12-17T23:32:35.085Z"
+  },
+  "f1_k": 0.0565
+}]
