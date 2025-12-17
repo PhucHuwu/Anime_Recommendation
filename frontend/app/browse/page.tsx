@@ -7,9 +7,10 @@ import { Footer } from "@/components/footer";
 import { AnimeCard } from "@/components/anime-card";
 import { SidebarAnimeList } from "@/components/sidebar-anime-list";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Star, TrendingUp, Loader2 } from "lucide-react";
+import { Search, Star, TrendingUp, Loader2, Cpu } from "lucide-react";
 import Link from "next/link";
 import { api, Anime } from "@/lib/api";
 
@@ -26,6 +27,7 @@ export default function BrowsePage() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [total, setTotal] = useState(0);
+    const [recommendationModel, setRecommendationModel] = useState<string>("popularity");
 
     const fetchAnime = useCallback(async () => {
         setLoading(true);
@@ -66,13 +68,16 @@ export default function BrowsePage() {
                 try {
                     const recData = await api.getRecommendations(parseInt(userId), 20);
                     setRecommendations(recData.items);
+                    setRecommendationModel(recData.model);
                 } catch {
                     const popularData = await api.getPopularAnime(20);
                     setRecommendations(popularData.items);
+                    setRecommendationModel(popularData.model);
                 }
             } else {
                 const popularData = await api.getPopularAnime(20);
                 setRecommendations(popularData.items);
+                setRecommendationModel(popularData.model);
             }
         } catch (err) {
             console.error("Failed to fetch sidebar data:", err);
@@ -209,9 +214,23 @@ export default function BrowsePage() {
                     <aside className="lg:w-80 space-y-6">
                         {/* Recommended for You */}
                         <div className="rounded-xl border bg-card p-6 space-y-4">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <Star className="h-5 w-5 text-primary" />
                                 <h2 className="text-xl font-bold">Recommended for You</h2>
+                                <Badge variant="outline" className="text-xs font-normal">
+                                    <Cpu className="h-3 w-3 mr-1" />
+                                    {recommendationModel === "hybrid"
+                                        ? "Hybrid AI"
+                                        : recommendationModel === "content_based"
+                                        ? "Content-Based"
+                                        : recommendationModel === "user_based"
+                                        ? "User-Based CF"
+                                        : recommendationModel === "item_based"
+                                        ? "Item-Based CF"
+                                        : recommendationModel === "popularity"
+                                        ? "Popular"
+                                        : recommendationModel}
+                                </Badge>
                             </div>
                             <div className="space-y-3">
                                 <SidebarAnimeList items={recommendations} />

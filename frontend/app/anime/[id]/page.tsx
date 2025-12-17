@@ -8,7 +8,7 @@ import { RatingStars } from "@/components/rating-stars";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { TrendingUp, Users, Loader2, Sparkles } from "lucide-react";
+import { TrendingUp, Users, Loader2, Sparkles, Cpu } from "lucide-react";
 import { AnimeGridPagination } from "@/components/anime-grid-pagination";
 import { api, AnimeDetail, Anime } from "@/lib/api";
 
@@ -20,6 +20,7 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
     const [similarAnime, setSimilarAnime] = useState<Anime[]>([]);
     const [loading, setLoading] = useState(true);
     const [userRating, setUserRating] = useState(0);
+    const [similarModel, setSimilarModel] = useState<string>("content_based");
 
     const fetchAnimeData = useCallback(async () => {
         setLoading(true);
@@ -31,6 +32,7 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
             // Fetch similar anime
             const similarData = await api.getSimilarAnime(parseInt(id), 20);
             setSimilarAnime(similarData.items);
+            setSimilarModel(similarData.model);
         } catch (err) {
             console.error("Failed to fetch anime:", err);
         } finally {
@@ -151,6 +153,10 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
                         <div className="flex items-center gap-3">
                             <Sparkles className="h-6 w-6 text-primary" />
                             <h2 className="text-2xl md:text-3xl font-bold">You might also like</h2>
+                            <Badge variant="outline" className="text-xs font-normal">
+                                <Cpu className="h-3 w-3 mr-1" />
+                                {similarModel === "content_based" ? "Content-Based" : similarModel === "context_similar" ? "Context-Similar" : similarModel}
+                            </Badge>
                         </div>
 
                         <AnimeGridPagination items={similarAnime} emptyMessage="No similar anime found" />

@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
 import { Button } from "@/components/ui/button";
-import { Sparkles, TrendingUp, Heart, ChevronRight, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Sparkles, TrendingUp, Heart, ChevronRight, Loader2, Cpu } from "lucide-react";
 import { AnimeGridPagination } from "@/components/anime-grid-pagination";
 import { api, Anime } from "@/lib/api";
 
@@ -15,6 +16,7 @@ export default function HomePage() {
     const [topAnime, setTopAnime] = useState<Anime[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [recommendationModel, setRecommendationModel] = useState<string>("popularity");
 
     useEffect(() => {
         // Check if user is logged in
@@ -35,15 +37,18 @@ export default function HomePage() {
                 try {
                     const recData = await api.getRecommendations(parseInt(storedUserId), 20);
                     setRecommendations(recData.items);
+                    setRecommendationModel(recData.model);
                 } catch {
                     // Fallback to popular if user recommendations fail
                     const popularData = await api.getPopularAnime(20);
                     setRecommendations(popularData.items);
+                    setRecommendationModel(popularData.model);
                 }
             } else {
                 // No user logged in, show popular
                 const popularData = await api.getPopularAnime(20);
                 setRecommendations(popularData.items);
+                setRecommendationModel(popularData.model);
             }
 
             // Fetch top anime
@@ -106,7 +111,23 @@ export default function HomePage() {
                                     <Heart className="h-6 w-6 text-primary" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl md:text-3xl font-bold">Recommended For You</h2>
+                                    <div className="flex items-center gap-2">
+                                        <h2 className="text-2xl md:text-3xl font-bold">Recommended For You</h2>
+                                        <Badge variant="outline" className="text-xs font-normal">
+                                            <Cpu className="h-3 w-3 mr-1" />
+                                            {recommendationModel === "hybrid"
+                                                ? "Hybrid AI"
+                                                : recommendationModel === "content_based"
+                                                ? "Content-Based"
+                                                : recommendationModel === "user_based"
+                                                ? "User-Based CF"
+                                                : recommendationModel === "item_based"
+                                                ? "Item-Based CF"
+                                                : recommendationModel === "popularity"
+                                                ? "Popular"
+                                                : recommendationModel}
+                                        </Badge>
+                                    </div>
                                     <p className="text-sm text-muted-foreground">Based on your watching history</p>
                                 </div>
                             </div>
