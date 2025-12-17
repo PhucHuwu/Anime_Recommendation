@@ -3,7 +3,7 @@
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-username/Anime_Recommendation.git
+git clone https://github.com/PhucHuwu/Anime_Recommendation.git
 cd Anime_Recommendation
 ```
 
