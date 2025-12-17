@@ -4,47 +4,19 @@ import { use, useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { AnimeCard } from "@/components/anime-card";
 import { RatingStars } from "@/components/rating-stars";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Calendar, Clock, TrendingUp, Users, Sparkles, Heart, Plus, Loader2 } from "lucide-react";
+import { TrendingUp, Users, Loader2, Sparkles } from "lucide-react";
 import { AnimeGridPagination } from "@/components/anime-grid-pagination";
 import { api, AnimeDetail, Anime } from "@/lib/api";
 
-interface ExtendedAnimeDetail extends AnimeDetail {
-    japaneName?: string;
-    userRating?: number;
-    status?: string;
-    aired?: string;
-    season?: string;
-    studios?: string[];
-    source?: string;
-    duration?: string;
-    rating_count?: number;
-}
-
-const getGradientFromName = (name: string) => {
-    const gradients = [
-        "from-purple-500 via-pink-500 to-red-500",
-        "from-blue-500 via-teal-500 to-green-500",
-        "from-pink-500 via-purple-500 to-indigo-500",
-        "from-yellow-500 via-orange-500 to-red-500",
-        "from-green-500 via-teal-500 to-blue-500",
-        "from-indigo-500 via-purple-500 to-pink-500",
-        "from-red-500 via-pink-500 to-purple-500",
-        "from-teal-500 via-cyan-500 to-blue-500",
-    ];
-
-    const hash = name.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return gradients[hash % gradients.length];
-};
+// Removed ExtendedAnimeDetail interface as it's no longer needed
 
 export default function AnimeDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = use(params);
-    const [anime, setAnime] = useState<ExtendedAnimeDetail | null>(null);
+    const [anime, setAnime] = useState<AnimeDetail | null>(null);
     const [similarAnime, setSimilarAnime] = useState<Anime[]>([]);
     const [loading, setLoading] = useState(true);
     const [userRating, setUserRating] = useState(0);
@@ -54,18 +26,7 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
         try {
             // Fetch anime details
             const animeData = await api.getAnimeDetail(parseInt(id));
-            setAnime({
-                ...animeData,
-                japaneName: "",
-                userRating: 0,
-                status: "Unknown",
-                aired: "Unknown",
-                season: "Unknown",
-                studios: [],
-                source: "Unknown",
-                duration: "24 min per ep",
-                rating_count: animeData.members || 0,
-            });
+            setAnime(animeData);
 
             // Fetch similar anime
             const similarData = await api.getSimilarAnime(parseInt(id), 20);
@@ -119,8 +80,6 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
         );
     }
 
-    const gradientClass = getGradientFromName(anime.name);
-
     return (
         <div className="min-h-screen flex flex-col">
             <Navbar />
@@ -129,37 +88,14 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
                 {/* Hero Section */}
                 <div className="relative bg-gradient-to-b from-muted/50 to-background">
                     <div className="container mx-auto px-4 py-12">
-                        <div className="grid md:grid-cols-[300px,1fr] gap-8">
-                            {/* Poster */}
-                            <div className="space-y-4">
-                                <div className="relative aspect-[2/3] w-full overflow-hidden rounded-xl border-4 border-border shadow-2xl">
-                                    <div className={`w-full h-full bg-gradient-to-br ${gradientClass} flex items-center justify-center p-8`}>
-                                        <div className="text-center">
-                                            <p className="text-white font-bold text-2xl drop-shadow-lg">{anime.name}</p>
-                                            <p className="text-white/80 text-sm mt-2 drop-shadow-lg">{anime.japaneName}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="space-y-2">
-                                    <Button className="w-full anime-gradient" size="lg">
-                                        <Plus className="mr-2 h-5 w-5" />
-                                        Add to List
-                                    </Button>
-                                    <Button className="w-full bg-transparent" variant="outline" size="lg">
-                                        <Heart className="mr-2 h-5 w-5" />
-                                        Add to Favorites
-                                    </Button>
-                                </div>
-                            </div>
-
+                        <div className="flex flex-col gap-8">
                             {/* Info */}
                             <div className="space-y-6">
                                 {/* Title */}
-                                <div className="space-y-2">
+                                <div className="space-y-4">
                                     <h1 className="text-3xl md:text-5xl font-bold text-balance">{anime.name}</h1>
-                                    <p className="text-lg text-muted-foreground">{anime.japaneName}</p>
+
+                                    {/* Removed Action Buttons */}
                                 </div>
 
                                 {/* Meta Info */}
@@ -175,6 +111,10 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
                                         <TrendingUp className="h-5 w-5 text-primary" />
                                         <span className="text-xl font-bold text-primary">{anime.rating.toFixed(1)}</span>
                                     </div>
+                                    <div className="flex items-center gap-2">
+                                        <Users className="h-5 w-5 text-accent" />
+                                        <span className="font-medium">{anime.members.toLocaleString()} Members</span>
+                                    </div>
                                 </div>
 
                                 {/* Genres */}
@@ -187,7 +127,7 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
                                 </div>
 
                                 {/* Rating Section */}
-                                <Card className="bg-primary/5 border-primary/20">
+                                <Card className="bg-primary/5 border-primary/20 max-w-xl">
                                     <CardContent className="p-6 space-y-4">
                                         <div className="flex items-center justify-between">
                                             <div>
@@ -196,99 +136,10 @@ export default function AnimeDetailPage({ params }: { params: Promise<{ id: stri
                                             </div>
                                             <div className="text-right">
                                                 <div className="text-3xl font-bold text-primary">{anime.rating?.toFixed(1) || 0}</div>
-                                                <div className="text-xs text-muted-foreground">{(anime.rating_count || 0).toLocaleString()} ratings</div>
                                             </div>
                                         </div>
                                     </CardContent>
                                 </Card>
-
-                                {/* Stats */}
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                                        <Calendar className="h-5 w-5 text-primary" />
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">Status</p>
-                                            <p className="text-sm font-medium">{anime.status}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                                        <Clock className="h-5 w-5 text-secondary" />
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">Duration</p>
-                                            <p className="text-sm font-medium">{anime.duration}</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                                        <Users className="h-5 w-5 text-accent" />
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">Members</p>
-                                            <p className="text-sm font-medium">{(anime.members / 1000000).toFixed(1)}M</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-                                        <Sparkles className="h-5 w-5 text-primary" />
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">Season</p>
-                                            <p className="text-sm font-medium">{anime.season}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Synopsis Section */}
-                <div className="container mx-auto px-4 py-12">
-                    <div className="max-w-4xl space-y-6">
-                        <h2 className="text-2xl font-bold">Synopsis</h2>
-                        <p className="text-muted-foreground leading-relaxed">{anime.synopsis}</p>
-
-                        <Separator />
-
-                        {/* Additional Info */}
-                        <div className="grid md:grid-cols-2 gap-6">
-                            <div>
-                                <h3 className="font-semibold mb-3">Information</h3>
-                                <dl className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Type:</dt>
-                                        <dd className="font-medium">{anime.type}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Episodes:</dt>
-                                        <dd className="font-medium">{anime.episodes}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Status:</dt>
-                                        <dd className="font-medium">{anime.status}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Aired:</dt>
-                                        <dd className="font-medium">{anime.aired}</dd>
-                                    </div>
-                                </dl>
-                            </div>
-                            <div>
-                                <h3 className="font-semibold mb-3">Production</h3>
-                                <dl className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Studios:</dt>
-                                        <dd className="font-medium">{anime.studios?.join(", ") || "Unknown"}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Source:</dt>
-                                        <dd className="font-medium">{anime.source}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Season:</dt>
-                                        <dd className="font-medium">{anime.season}</dd>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <dt className="text-muted-foreground">Duration:</dt>
-                                        <dd className="font-medium">{anime.duration}</dd>
-                                    </div>
-                                </dl>
                             </div>
                         </div>
                     </div>

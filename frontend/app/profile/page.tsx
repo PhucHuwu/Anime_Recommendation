@@ -4,17 +4,15 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/navbar";
 import { Footer } from "@/components/footer";
-import { AnimeCard } from "@/components/anime-card";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
-import { User, Calendar, Star, TrendingUp, Heart, Clock, BarChart3, Loader2 } from "lucide-react";
+import { User, Calendar, Star, TrendingUp, Clock, BarChart3, Loader2 } from "lucide-react";
 import { PieChart } from "@/components/charts/pie-chart";
 import { BarChart } from "@/components/charts/bar-chart";
-import { api, UserProfile, UserRating, Anime } from "@/lib/api";
+import { api, UserProfile, UserRating } from "@/lib/api";
 
 interface GenreStats {
     genre: string;
@@ -28,7 +26,6 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState<UserProfile | null>(null);
     const [ratings, setRatings] = useState<UserRating[]>([]);
-    const [favorites, setFavorites] = useState<Anime[]>([]);
     const [genreStats, setGenreStats] = useState<GenreStats[]>([]);
     const router = useRouter();
 
@@ -58,13 +55,8 @@ export default function ProfilePage() {
             }
 
             // Fetch user ratings
-            const ratingsData = await api.getUserRatings(parseInt(uid), 1, 50);
+            const ratingsData = await api.getUserRatings(parseInt(uid), 1, 100);
             setRatings(ratingsData.items);
-
-            // Get top rated as favorites (rating >= 8)
-            const topRated = ratingsData.items.filter((r) => r.rating >= 8).slice(0, 4);
-            // Note: We'd need anime details, for now use the rating data
-            setFavorites([]);
         } catch (err) {
             console.error("Failed to fetch user data:", err);
         } finally {
@@ -89,14 +81,11 @@ export default function ProfilePage() {
     });
 
     const genreChartData = genreStats.map((item) => ({ name: item.genre, value: item.count }));
-    const monthlyChartData = [
-        { name: "Jan", value: 0 },
-        { name: "Feb", value: 0 },
-        { name: "Mar", value: 0 },
-        { name: "Apr", value: 0 },
-        { name: "May", value: 0 },
-        { name: "Jun", value: 0 },
-    ];
+    const ratingDistributionData = Array.from({ length: 10 }, (_, i) => {
+        const score = 10 - i;
+        const count = ratings.filter((r) => Math.round(r.rating) === score).length;
+        return { name: score.toString(), value: count };
+    });
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -134,7 +123,7 @@ export default function ProfilePage() {
                                         <div className="flex items-center gap-2 px-4 py-2 bg-secondary/10 rounded-lg">
                                             <Clock className="h-5 w-5 text-secondary" />
                                             <div>
-                                                <p className="text-xs text-muted-foreground">Total Ratings</p>
+                                                <p className="text-xs text-muted-foreground">Recent Ratings</p>
                                                 <p className="text-lg font-bold">{ratings.length}</p>
                                             </div>
                                         </div>
@@ -180,22 +169,25 @@ export default function ProfilePage() {
                             </CardContent>
                         </Card>
 
-                        {/* Monthly Activity */}
+                        {/* Rating Distribution */}
                         <Card>
                             <CardHeader>
                                 <CardTitle className="flex items-center gap-2">
-                                    <TrendingUp className="h-5 w-5 text-secondary" />
-                                    Monthly Activity
+                                    <Star className="h-5 w-5 text-secondary" />
+                                    Rating Distribution
                                 </CardTitle>
-                                <CardDescription>Anime watched per month</CardDescription>
+                                <CardDescription>How you rated anime (1-10)</CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-6">
-                                <BarChart data={monthlyChartData} color="hsl(var(--secondary))" />
+                                <BarChart data={ratingDistributionData} />
                                 <div className="space-y-4">
-                                    {monthlyChartData.map((item) => (
+                                    {ratingDistributionData.map((item) => (
                                         <div key={item.name} className="flex items-center gap-4">
-                                            <span className="text-sm font-medium w-12">{item.name}</span>
-                                            <Progress value={(item.value / 20) * 100} className="flex-1 h-2" />
+                                            <div className="flex items-center gap-1 w-12 justify-end">
+                                                <span className="text-sm font-medium">{item.name}</span>
+                                                <Star className="h-3 w-3 fill-current text-muted-foreground" />
+                                            </div>
+                                            <Progress value={(item.value / (ratings.length || 1)) * 100} className="flex-1 h-2" />
                                             <span className="text-sm text-muted-foreground w-8 text-right">{item.value}</span>
                                         </div>
                                     ))}
@@ -204,95 +196,55 @@ export default function ProfilePage() {
                         </Card>
                     </div>
 
-                    {/* Tabs Section */}
-                    <Tabs defaultValue="ratings" className="space-y-6">
-                        <TabsList className="grid w-full max-w-md grid-cols-2">
-                            <TabsTrigger value="ratings">Rating History</TabsTrigger>
-                            <TabsTrigger value="favorites">Favorites</TabsTrigger>
-                        </TabsList>
-
-                        {/* Rating History Tab */}
-                        <TabsContent value="ratings" className="space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <CardTitle>Rating History</CardTitle>
-                                            <CardDescription>All anime you've rated</CardDescription>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button variant={sortBy === "recent" ? "default" : "outline"} size="sm" onClick={() => setSortBy("recent")}>
-                                                Recent
-                                            </Button>
-                                            <Button variant={sortBy === "rating" ? "default" : "outline"} size="sm" onClick={() => setSortBy("rating")}>
-                                                Rating
-                                            </Button>
-                                        </div>
+                    {/* Rating History Section */}
+                    <div className="space-y-4">
+                        <Card>
+                            <CardHeader>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <CardTitle>Rating History</CardTitle>
+                                        <CardDescription>All anime you've rated</CardDescription>
                                     </div>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-3">
-                                        {sortedRatings.length > 0 ? (
-                                            sortedRatings.map((item) => (
-                                                <div
-                                                    key={item.anime_id}
-                                                    className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                                                >
-                                                    <div className="flex-1">
-                                                        <h4 className="font-semibold">{item.anime_name}</h4>
-                                                        <p className="text-xs text-muted-foreground mt-2">{item.rated_at || "Recently"}</p>
-                                                    </div>
-                                                    <div className="flex flex-col items-end gap-2">
-                                                        <div className="flex items-center gap-1 px-3 py-1 bg-primary/10 rounded-full">
-                                                            <Star className="h-4 w-4 fill-primary text-primary" />
-                                                            <span className="font-bold text-primary">{item.rating}/10</span>
-                                                        </div>
-                                                        <Button variant="ghost" size="sm" asChild>
-                                                            <a href={`/anime/${item.anime_id}`}>View</a>
-                                                        </Button>
-                                                    </div>
+                                    <div className="flex gap-2">
+                                        <Button variant={sortBy === "recent" ? "default" : "outline"} size="sm" onClick={() => setSortBy("recent")}>
+                                            Recent
+                                        </Button>
+                                        <Button variant={sortBy === "rating" ? "default" : "outline"} size="sm" onClick={() => setSortBy("rating")}>
+                                            Rating
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-3">
+                                    {sortedRatings.length > 0 ? (
+                                        sortedRatings.map((item) => (
+                                            <div
+                                                key={item.anime_id}
+                                                className="flex items-center justify-between p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                                            >
+                                                <div className="flex-1">
+                                                    <h4 className="font-semibold">{item.anime_name}</h4>
+                                                    <p className="text-xs text-muted-foreground mt-2">{item.rated_at || "Recently"}</p>
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <p className="text-center text-muted-foreground py-8">No ratings yet</p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
-
-                        {/* Favorites Tab */}
-                        <TabsContent value="favorites" className="space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle className="flex items-center gap-2">
-                                        <Heart className="h-5 w-5 text-destructive fill-destructive" />
-                                        Your Favorite Anime
-                                    </CardTitle>
-                                    <CardDescription>Anime you loved the most</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {favorites.length > 0 ? (
-                                            favorites.map((anime) => (
-                                                <AnimeCard
-                                                    key={anime.anime_id}
-                                                    id={anime.anime_id}
-                                                    name={anime.name}
-                                                    rating={anime.rating}
-                                                    genres={anime.genre}
-                                                    type={anime.type}
-                                                    episodes={anime.episodes}
-                                                />
-                                            ))
-                                        ) : (
-                                            <p className="col-span-full text-center text-muted-foreground py-8">No favorites yet</p>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
-                    </Tabs>
+                                                <div className="flex flex-col items-end gap-2">
+                                                    <div className="flex items-center gap-1 px-3 py-1 bg-primary/10 rounded-full">
+                                                        <Star className="h-4 w-4 fill-primary text-primary" />
+                                                        <span className="font-bold text-primary">{item.rating}/10</span>
+                                                    </div>
+                                                    <Button variant="ghost" size="sm" asChild>
+                                                        <a href={`/anime/${item.anime_id}`}>View</a>
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-muted-foreground py-8">No ratings yet</p>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
                 </div>
             </main>
 
