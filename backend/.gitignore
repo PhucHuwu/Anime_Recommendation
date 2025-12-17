@@ -1,0 +1,7 @@
+__pycache__/
+
+# Model file
+*.pkl
+
+# Dataset file
+*.csv
