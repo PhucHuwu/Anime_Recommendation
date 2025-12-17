@@ -62,7 +62,7 @@ class ContentBasedRecommender(BaseRecommender):
         
         return self
     
-    def get_similar_anime(self, anime_id: int, n: int = 10) -> List[int]:
+    def get_similar_anime(self, anime_id: int, n: int = 20) -> List[int]:
         """
         Get anime similar to a given anime.
         
@@ -90,7 +90,7 @@ class ContentBasedRecommender(BaseRecommender):
         
         return [self.anime_ids[i] for i in similar_indices]
     
-    def predict(self, user_id: int, n: int = 10, liked_anime_ids: Optional[List[int]] = None) -> List[int]:
+    def predict(self, user_id: int, n: int = 20, liked_anime_ids: Optional[List[int]] = None) -> List[int]:
         """
         Get recommendations for a user based on their liked anime.
         

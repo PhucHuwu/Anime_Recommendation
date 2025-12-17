@@ -11,6 +11,7 @@ import { Users, Film, Star, TrendingUp, Activity, Database, Settings, BarChart3,
 import { Progress } from "@/components/ui/progress";
 import { PieChart } from "@/components/charts/pie-chart";
 import { LineChart } from "@/components/charts/line-chart";
+import { useToast } from "@/components/ui/use-toast";
 import { api, Statistics, ModelMetrics } from "@/lib/api";
 
 interface GenreStat {
@@ -27,10 +28,14 @@ interface TypeStat {
 
 export default function AdminPage() {
     const [loading, setLoading] = useState(true);
+    const [retraining, setRetraining] = useState<string | null>(null);
+    const { toast } = useToast();
     const [stats, setStats] = useState<Statistics | null>(null);
     const [models, setModels] = useState<ModelMetrics[]>([]);
     const [genreStats, setGenreStats] = useState<GenreStat[]>([]);
     const [typeStats, setTypeStats] = useState<TypeStat[]>([]);
+    const [progress, setProgress] = useState(0);
+    const [statusMessage, setStatusMessage] = useState("");
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -39,16 +44,37 @@ export default function AdminPage() {
             const statsData = await api.getStats();
             setStats(statsData);
 
-            // Process genre stats
-            if (statsData.top_genres) {
-                const total = statsData.top_genres.reduce((sum, g) => sum + g.count, 0);
-                setGenreStats(
-                    statsData.top_genres.map((g) => ({
-                        genre: g.genre,
-                        count: g.count,
-                        percentage: Math.round((g.count / total) * 100),
-                    }))
-                );
+            // Fetch visualization data for charts
+            try {
+                const vizData = (await api.getVisualizationData()) as any;
+
+                // Process genre stats from visualization data
+                if (vizData.genre_distribution && vizData.genre_distribution.length > 0) {
+                    const genreData = vizData.genre_distribution as any[];
+                    const total = genreData.reduce((sum: number, g: any) => sum + (g.count || g.value || 0), 0);
+                    setGenreStats(
+                        genreData.slice(0, 8).map((g: any) => ({
+                            genre: g.genre || g.name || "Unknown",
+                            count: g.count || g.value || 0,
+                            percentage: total > 0 ? Math.round(((g.count || g.value || 0) / total) * 100) : 0,
+                        }))
+                    );
+                }
+
+                // Process type stats from visualization data
+                if (vizData.type_distribution && vizData.type_distribution.length > 0) {
+                    const typeData = vizData.type_distribution as any[];
+                    const total = typeData.reduce((sum: number, t: any) => sum + (t.count || t.value || 0), 0);
+                    setTypeStats(
+                        typeData.map((t: any) => ({
+                            type: t.type || t.name || "Unknown",
+                            count: t.count || t.value || 0,
+                            percentage: total > 0 ? Math.round(((t.count || t.value || 0) / total) * 100) : 0,
+                        }))
+                    );
+                }
+            } catch (vizErr) {
+                console.error("Failed to fetch visualization data:", vizErr);
             }
 
             // Fetch models
@@ -79,6 +105,71 @@ export default function AdminPage() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    const checkRetrainStatus = useCallback(async () => {
+        try {
+            const status = await api.getRetrainStatus();
+            if (status.status === "running") {
+                if (!retraining) setRetraining(status.model_name || "all");
+                setProgress(status.progress);
+                setStatusMessage(status.message);
+            } else if (status.status === "completed") {
+                if (retraining || status.status === "completed") {
+                    setRetraining(null);
+                    setProgress(100);
+                    setStatusMessage("Completed!");
+                    if (retraining) {
+                        toast({ title: "Retrain Completed", description: "Models have been updated." });
+                        fetchData();
+                    }
+                }
+            } else if (status.status === "error") {
+                if (retraining) {
+                    setRetraining(null);
+                    toast({ title: "Retrain Failed", description: status.message, variant: "destructive" });
+                }
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }, [retraining, toast, fetchData]);
+
+    // Poll status when retraining
+    useEffect(() => {
+        let interval: NodeJS.Timeout;
+        if (retraining) {
+            interval = setInterval(checkRetrainStatus, 1000);
+        } else {
+            checkRetrainStatus();
+        }
+        return () => clearInterval(interval);
+    }, [retraining, checkRetrainStatus]);
+
+    const handleRetrain = async (modelName?: string) => {
+        const target = modelName || "all";
+        setRetraining(target);
+        toast({
+            title: "Retraining Started",
+            description: `Started retraining for ${modelName || "all models"}. This process runs in the background.`,
+        });
+
+        try {
+            await api.retrainModel(modelName);
+            toast({
+                title: "Request Sent",
+                description: "Retraining task runs in background.",
+                className: "bg-green-500 text-white border-none",
+            });
+        } catch (err) {
+            console.error("Retrain error:", err);
+            toast({
+                title: "Error",
+                description: "Failed to start retraining.",
+                variant: "destructive",
+            });
+            setRetraining(null);
+        }
+    };
 
     const genreChartData = genreStats.slice(0, 5).map((item) => ({ name: item.genre, value: item.count }));
     const typeChartData = typeStats.map((item) => ({ name: item.type, value: item.count }));
@@ -182,10 +273,9 @@ export default function AdminPage() {
 
                     {/* Tabs */}
                     <Tabs defaultValue="models" className="space-y-6">
-                        <TabsList className="grid w-full max-w-2xl grid-cols-3">
+                        <TabsList className="grid w-full max-w-2xl grid-cols-2">
                             <TabsTrigger value="models">Models</TabsTrigger>
                             <TabsTrigger value="statistics">Statistics</TabsTrigger>
-                            <TabsTrigger value="database">Database</TabsTrigger>
                         </TabsList>
 
                         {/* Models Tab */}
@@ -197,11 +287,20 @@ export default function AdminPage() {
                                             <CardTitle>Recommendation Models</CardTitle>
                                             <CardDescription>Manage and monitor ML models</CardDescription>
                                         </div>
-                                        <Button className="anime-gradient">
-                                            <RefreshCw className="mr-2 h-4 w-4" />
-                                            Retrain All
+                                        <Button className="anime-gradient" onClick={() => handleRetrain()} disabled={!!retraining}>
+                                            {retraining === "all" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                                            {retraining === "all" ? "Starting..." : "Retrain All"}
                                         </Button>
                                     </div>
+                                    {!!retraining && (
+                                        <div className="mt-4 space-y-2">
+                                            <div className="flex justify-between text-sm">
+                                                <span className="text-muted-foreground">{statusMessage}</span>
+                                                <span className="font-medium">{progress}%</span>
+                                            </div>
+                                            <Progress value={progress} className="h-2" />
+                                        </div>
+                                    )}
                                 </CardHeader>
                                 <CardContent>
                                     <div className="space-y-4">
@@ -219,8 +318,17 @@ export default function AdminPage() {
                                                                 </div>
                                                                 <p className="text-sm text-muted-foreground">{model.model_name}</p>
                                                             </div>
-                                                            <Button variant="outline" size="sm">
-                                                                <RefreshCw className="mr-2 h-4 w-4" />
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleRetrain(model.model_name)}
+                                                                disabled={!!retraining}
+                                                            >
+                                                                {retraining === model.model_name ? (
+                                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                                                )}
                                                                 Retrain
                                                             </Button>
                                                         </div>
@@ -344,7 +452,7 @@ export default function AdminPage() {
 
                         {/* Statistics Tab */}
                         <TabsContent value="statistics" className="space-y-4">
-                            <div className="grid lg:grid-cols-3 gap-6 mb-6">
+                            <div className="grid lg:grid-cols-2 gap-6 mb-6">
                                 <Card>
                                     <CardHeader>
                                         <CardTitle>Genre Distribution</CardTitle>
@@ -362,22 +470,6 @@ export default function AdminPage() {
                                     </CardHeader>
                                     <CardContent>
                                         <PieChart data={typeChartData} />
-                                    </CardContent>
-                                </Card>
-
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle>User Activity</CardTitle>
-                                        <CardDescription>Last 6 months</CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <LineChart
-                                            data={activityData}
-                                            lines={[
-                                                { dataKey: "users", color: "hsl(var(--primary))", name: "Users" },
-                                                { dataKey: "ratings", color: "hsl(var(--secondary))", name: "Ratings" },
-                                            ]}
-                                        />
                                     </CardContent>
                                 </Card>
                             </div>
@@ -467,60 +559,6 @@ export default function AdminPage() {
                                                 </div>
                                             </div>
                                         ))}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </TabsContent>
-
-                        {/* Database Tab */}
-                        <TabsContent value="database" className="space-y-4">
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Database Overview</CardTitle>
-                                    <CardDescription>Monitor database health and performance</CardDescription>
-                                </CardHeader>
-                                <CardContent>
-                                    <div className="space-y-6">
-                                        <div className="grid md:grid-cols-3 gap-4">
-                                            <div className="p-4 rounded-lg border-2 border-primary/20 bg-primary/5">
-                                                <Database className="h-8 w-8 text-primary mb-2" />
-                                                <div className="text-2xl font-bold">98.5%</div>
-                                                <p className="text-sm text-muted-foreground">Uptime</p>
-                                            </div>
-                                            <div className="p-4 rounded-lg border-2 border-secondary/20 bg-secondary/5">
-                                                <Activity className="h-8 w-8 text-secondary mb-2" />
-                                                <div className="text-2xl font-bold">1.2ms</div>
-                                                <p className="text-sm text-muted-foreground">Avg Query Time</p>
-                                            </div>
-                                            <div className="p-4 rounded-lg border-2 border-accent/20 bg-accent/5">
-                                                <TrendingUp className="h-8 w-8 text-accent mb-2" />
-                                                <div className="text-2xl font-bold">45GB</div>
-                                                <p className="text-sm text-muted-foreground">Database Size</p>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <h4 className="font-semibold">Recent Operations</h4>
-                                            <div className="space-y-2">
-                                                {[
-                                                    { operation: "User registration", time: "2 minutes ago", status: "success" },
-                                                    { operation: "Rating update", time: "5 minutes ago", status: "success" },
-                                                    { operation: "Model training", time: "1 hour ago", status: "success" },
-                                                    { operation: "Data backup", time: "2 hours ago", status: "success" },
-                                                    { operation: "Cache refresh", time: "3 hours ago", status: "success" },
-                                                ].map((op, idx) => (
-                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                                                        <span className="text-sm font-medium">{op.operation}</span>
-                                                        <div className="flex items-center gap-3">
-                                                            <span className="text-xs text-muted-foreground">{op.time}</span>
-                                                            <Badge variant="secondary" className="bg-green-500/10 text-green-600">
-                                                                {op.status}
-                                                            </Badge>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
                                     </div>
                                 </CardContent>
                             </Card>

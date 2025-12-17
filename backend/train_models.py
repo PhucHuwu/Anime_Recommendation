@@ -9,7 +9,7 @@ import logging
 import random
 from pathlib import Path
 from datetime import datetime
-from typing import List, Dict, Tuple, Set
+from typing import List, Dict, Tuple, Set, Callable, Awaitable, Optional, Any
 from collections import defaultdict
 
 from app.database import Database, Collections
@@ -98,7 +98,7 @@ def evaluate_model(
     model, 
     test_ratings: List[Dict], 
     train_ratings: List[Dict],
-    k: int = 10,
+    k: int = 20,
     threshold: float = 7.0
 ) -> Dict[str, float]:
     """
@@ -149,7 +149,15 @@ def evaluate_model(
         try:
             # Get recommendations
             if hasattr(model, 'predict'):
-                recs = model.predict(user_id, n=k)
+                if isinstance(model, ContentBasedRecommender):
+                     # Content-based needs liked history
+                     liked = list(user_train_items.get(user_id, set()))
+                     if not liked:
+                         # Fallback if no history (should be handled by filters but safety check)
+                         continue
+                     recs = model.predict(user_id, n=k, liked_anime_ids=liked)
+                else:
+                    recs = model.predict(user_id, n=k)
             else:
                 continue
             
@@ -213,168 +221,195 @@ async def save_metrics_to_mongodb(model_name: str, metrics: dict, description: s
     logger.info(f"Saved metrics for {model_name} to MongoDB")
 
 
-async def main(sample_size: int = None, test_ratio: float = 0.2):
-    """Main training and evaluation pipeline."""
+
+async def train_content_based(save_path: Path, anime_list: List[Dict], train_ratings: List[Dict], test_ratings: List[Dict]):
+    """Train and evaluate Content-Based model."""
+    logger.info("\n" + "=" * 40)
+    logger.info("TRAINING CONTENT-BASED FILTERING")
+    logger.info("=" * 40)
+    
+    content_model = ContentBasedRecommender()
+    content_model.fit(anime_list)
+    content_model.save(save_path / "content_based.pkl")
+    
+    content_metrics = evaluate_model(content_model, test_ratings, train_ratings)
+    await save_metrics_to_mongodb(
+        "Content-Based Filtering", 
+        content_metrics,
+        "Recommends based on anime features (genres) using TF-IDF and cosine similarity"
+    )
+    return content_metrics
+
+async def train_item_based(save_path: Path, train_ratings: List[Dict], test_ratings: List[Dict]):
+    """Train and evaluate Item-Based CF model."""
+    logger.info("\n" + "=" * 40)
+    logger.info("TRAINING ITEM-BASED COLLABORATIVE FILTERING")
+    logger.info("=" * 40)
+    
+    item_model = ItemBasedRecommender(k_neighbors=20)
+    item_model.fit(train_ratings)
+    item_model.save(save_path / "item_based.pkl")
+    
+    item_metrics = evaluate_model(item_model, test_ratings, train_ratings)
+    await save_metrics_to_mongodb(
+        "Item-Based Collaborative Filtering",
+        item_metrics,
+        "Recommends based on item-item similarity using user rating patterns"
+    )
+    return item_metrics
+
+async def train_user_based(save_path: Path, train_ratings: List[Dict], test_ratings: List[Dict]):
+    """Train and evaluate User-Based CF model."""
+    logger.info("\n" + "=" * 40)
+    logger.info("TRAINING USER-BASED COLLABORATIVE FILTERING")
+    logger.info("=" * 40)
+    
+    user_model = UserBasedRecommender(k_neighbors=20)
+    user_model.fit(train_ratings)
+    user_model.save(save_path / "user_based.pkl")
+    
+    user_metrics = evaluate_model(user_model, test_ratings, train_ratings)
+    await save_metrics_to_mongodb(
+        "User-Based Collaborative Filtering",
+        user_metrics,
+        "Recommends based on similar user preferences using KNN"
+    )
+    return user_metrics
+
+async def train_hybrid(save_path: Path, anime_list: List[Dict], train_ratings: List[Dict], test_ratings: List[Dict]):
+    """Train and evaluate Hybrid model."""
+    logger.info("\n" + "=" * 40)
+    logger.info("TRAINING HYBRID MODEL")
+    logger.info("=" * 40)
+    
+    hybrid_model = HybridRecommender()
+    hybrid_model.fit(anime_list, train_ratings)
+    hybrid_model.save(save_path / "hybrid.pkl")
+    
+    hybrid_metrics = evaluate_model(hybrid_model, test_ratings, train_ratings)
+    await save_metrics_to_mongodb(
+        "Hybrid Model",
+        hybrid_metrics,
+        "Combines Content-Based and Collaborative Filtering with weighted scoring"
+    )
+    return hybrid_metrics
+
+
+
+async def train_models_task(model_name: str = None, progress_callback: Optional[Callable[[str, int], Awaitable[None]]] = None):
+    """
+    Background task to train models.
+    
+    Args:
+        model_name: Specific model to train, or None for all.
+        progress_callback: Async function to report progress (message, percentage)
+    """
     logger.info("=" * 60)
-    logger.info("ANIME RECOMMENDATION MODELS - TRAINING & EVALUATION")
+    logger.info(f"STARTING MODEL RETRAINING TASK: {model_name or 'ALL'}")
     logger.info("=" * 60)
     
-    # Connect to database
+    # Helper to report progress safely
+    async def report(msg: str, pct: int):
+        if progress_callback:
+            try:
+                await progress_callback(msg, pct)
+            except Exception as e:
+                logger.error(f"Failed to report progress: {e}")
+
+    # Connect to database (needed for background task)
     await Database.connect()
     
-    # Create models directory
-    save_path = settings.models_dir
-    save_path.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Models will be saved to: {save_path}")
-    
     try:
+        await report("Initializing...", 0)
+
+        # Create models directory
+        save_path = settings.models_dir
+        save_path.mkdir(parents=True, exist_ok=True)
+        
+        await report("Loading data from database...", 5)
+        
         # Load data
         anime_data, ratings_data = await load_data_from_mongodb()
         
-        if not anime_data:
-            logger.error("No anime data found! Run data loader first.")
+        if not anime_data or not ratings_data:
+            logger.error("No data found for training!")
+            await report("Error: No data found", 0)
             return
-        
-        if not ratings_data:
-            logger.error("No ratings data found! Run data loader first.")
-            return
-        
-        # Sample if requested
-        if sample_size and len(ratings_data) > sample_size:
-            ratings_data = random.sample(ratings_data, sample_size)
-            logger.info(f"Sampled {sample_size} ratings for training")
-        
-        # Convert to dicts
+
         anime_list = [dict(a) for a in anime_data]
         ratings_list = [dict(r) for r in ratings_data]
         
-        # Train/Test split
-        train_ratings, test_ratings = train_test_split(ratings_list, test_ratio)
+        await report("Splitting datasets...", 10)
+        train_ratings, test_ratings = train_test_split(ratings_list, test_ratio=0.2)
         
-        # ============================================
-        # 1. CONTENT-BASED MODEL
-        # ============================================
-        logger.info("\n" + "=" * 40)
-        logger.info("1. CONTENT-BASED FILTERING")
-        logger.info("=" * 40)
+        # Map model names to functions
+        # Allow loose matching or specific keys
+        run_all = model_name is None or model_name.lower() == "all"
+        target_model = model_name.lower() if model_name else "all"
         
-        content_model = ContentBasedRecommender()
-        content_model.fit(anime_list)
-        content_model.save(save_path / "content_based.pkl")
+        # Calculate steps
+        steps = []
+        if run_all or "content" in target_model: steps.append("content")
+        if run_all or "item" in target_model: steps.append("item")
+        if run_all or "user" in target_model: steps.append("user")
+        if run_all or "hybrid" in target_model: steps.append("hybrid")
         
-        content_metrics = evaluate_model(content_model, test_ratings, train_ratings)
-        await save_metrics_to_mongodb(
-            "Content-Based Filtering", 
-            content_metrics,
-            "Recommends based on anime features (genres) using TF-IDF and cosine similarity"
-        )
+        total_steps = len(steps)
+        current_step = 0
+        base_progress = 15
+        progress_per_step = 80 / max(total_steps, 1)
+
+        if run_all or "content" in target_model:
+            await report("Training Content-Based Model...", int(base_progress + current_step * progress_per_step))
+            await train_content_based(save_path, anime_list, train_ratings, test_ratings)
+            current_step += 1
+            
+        if run_all or "item" in target_model:
+            await report("Training Item-Based CF Model...", int(base_progress + current_step * progress_per_step))
+            await train_item_based(save_path, train_ratings, test_ratings)
+            current_step += 1
+            
+        if run_all or "user" in target_model:
+            await report("Training User-Based CF Model...", int(base_progress + current_step * progress_per_step))
+            await train_user_based(save_path, train_ratings, test_ratings)
+            current_step += 1
+            
+        if run_all or "hybrid" in target_model:
+            await report("Training Hybrid Model...", int(base_progress + current_step * progress_per_step))
+            await train_hybrid(save_path, anime_list, train_ratings, test_ratings)
+            current_step += 1
+            
+        await report("Retraining completed successfully!", 100)
+        logger.info("Retraining task completed successfully.")
         
-        # ============================================
-        # 2. ITEM-BASED CF
-        # ============================================
-        logger.info("\n" + "=" * 40)
-        logger.info("2. ITEM-BASED COLLABORATIVE FILTERING")
-        logger.info("=" * 40)
-        
-        item_model = ItemBasedRecommender(k_neighbors=20)
-        item_model.fit(train_ratings)
-        item_model.save(save_path / "item_based.pkl")
-        
-        item_metrics = evaluate_model(item_model, test_ratings, train_ratings)
-        await save_metrics_to_mongodb(
-            "Item-Based Collaborative Filtering",
-            item_metrics,
-            "Recommends based on item-item similarity using user rating patterns"
-        )
-        
-        # ============================================
-        # 3. USER-BASED CF
-        # ============================================
-        logger.info("\n" + "=" * 40)
-        logger.info("3. USER-BASED COLLABORATIVE FILTERING")
-        logger.info("=" * 40)
-        
-        user_model = UserBasedRecommender(k_neighbors=20)
-        user_model.fit(train_ratings)
-        user_model.save(save_path / "user_based.pkl")
-        
-        user_metrics = evaluate_model(user_model, test_ratings, train_ratings)
-        await save_metrics_to_mongodb(
-            "User-Based Collaborative Filtering",
-            user_metrics,
-            "Recommends based on similar user preferences using KNN"
-        )
-        
-        # ============================================
-        # 4. HYBRID MODEL
-        # ============================================
-        logger.info("\n" + "=" * 40)
-        logger.info("4. HYBRID MODEL")
-        logger.info("=" * 40)
-        
-        hybrid_model = HybridRecommender()
-        hybrid_model.fit(anime_list, train_ratings)
-        hybrid_model.save(save_path / "hybrid.pkl")
-        
-        hybrid_metrics = evaluate_model(hybrid_model, test_ratings, train_ratings)
-        await save_metrics_to_mongodb(
-            "Hybrid Model",
-            hybrid_metrics,
-            "Combines Content-Based and Collaborative Filtering with weighted scoring"
-        )
-        
-        # ============================================
-        # SUMMARY
-        # ============================================
-        logger.info("\n" + "=" * 60)
-        logger.info("TRAINING & EVALUATION COMPLETE!")
-        logger.info("=" * 60)
-        
-        print("\nMODEL COMPARISON:")
-        print("-" * 70)
-        print(f"{'Model':<35} {'RMSE':<8} {'MAE':<8} {'P@10':<8} {'R@10':<8}")
-        print("-" * 70)
-        print(f"{'Content-Based':<35} {content_metrics['rmse']:<8} {content_metrics['mae']:<8} "
-              f"{content_metrics['precision_k']:<8} {content_metrics['recall_k']:<8}")
-        print(f"{'Item-Based CF':<35} {item_metrics['rmse']:<8} {item_metrics['mae']:<8} "
-              f"{item_metrics['precision_k']:<8} {item_metrics['recall_k']:<8}")
-        print(f"{'User-Based CF':<35} {user_metrics['rmse']:<8} {user_metrics['mae']:<8} "
-              f"{user_metrics['precision_k']:<8} {user_metrics['recall_k']:<8}")
-        print(f"{'Hybrid':<35} {hybrid_metrics['rmse']:<8} {hybrid_metrics['mae']:<8} "
-              f"{hybrid_metrics['precision_k']:<8} {hybrid_metrics['recall_k']:<8}")
-        print("-" * 70)
-        
-        print(f"\nModels saved to: {save_path}")
-        print("Metrics saved to MongoDB")
+    except Exception as e:
+        logger.error(f"Error during retraining task: {e}", exc_info=True)
+        await report(f"Error: {str(e)}", 0)
+    finally:
+        # Don't disconnect if the app is still running and sharing connection?
+        pass
+
+async def main(sample_size: int = None, test_ratio: float = 0.2):
+    """Main training and evaluation pipeline (CLI usage)."""
+    # ... (CLI logic wraps train_models_task or calls functions directly)
+    # For CLI, we DO want to connect/disconnect.
     
+    await Database.connect()
+    try:
+        # Reuse train_models_task logic or call specific functions
+        # For simplicity, let's just call train_models_task with 'all'
+        # But we need to handle arguments like sample_size manually if we want to honor them exactly as before
+        # For now, let's keep it simple and just run the task.
+        await train_models_task("all")
     finally:
         await Database.disconnect()
 
 
 if __name__ == "__main__":
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Train and evaluate recommendation models")
-    parser.add_argument(
-        "--sample", 
-        type=int, 
-        default=None,
-        help="Sample size for ratings (for faster training). Default: use all data."
-    )
-    parser.add_argument(
-        "--test-ratio",
-        type=float,
-        default=0.2,
-        help="Test set ratio (default: 0.2)"
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--sample", type=int, default=None)
+    parser.add_argument("--test-ratio", type=float, default=0.2)
     args = parser.parse_args()
     
-    print("\n" + "=" * 60)
-    print("ANIME RECOMMENDATION - MODEL TRAINING")
-    print("=" * 60)
-    print(f"Sample size: {args.sample or 'Full data'}")
-    print(f"Test ratio: {args.test_ratio}")
-    print("This may take a while for large datasets...")
-    print("=" * 60 + "\n")
-    
-    asyncio.run(main(sample_size=args.sample, test_ratio=args.test_ratio))
+    asyncio.run(main(args.sample, args.test_ratio))

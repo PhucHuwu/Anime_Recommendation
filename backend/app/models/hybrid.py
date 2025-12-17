@@ -95,7 +95,7 @@ class HybridRecommender(BaseRecommender):
         
         return self
     
-    def predict(self, user_id: int, n: int = 10) -> List[int]:
+    def predict(self, user_id: int, n: int = 20) -> List[int]:
         """
         Get recommendations combining all models.
         

@@ -107,7 +107,7 @@ class UserBasedRecommender(BaseRecommender):
             user_vector = self.rating_matrix.getrow(user_idx)
             return cosine_similarity(user_vector, self.rating_matrix).ravel()
     
-    def predict(self, user_id: int, n: int = 10) -> List[int]:
+    def predict(self, user_id: int, n: int = 20) -> List[int]:
         """
         Get recommendations for a user.
         

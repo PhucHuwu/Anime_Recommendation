@@ -23,7 +23,7 @@ class RecommendationResponse(BaseModel):
 @router.get("", response_model=RecommendationResponse)
 async def get_recommendations(
     user_id: int = Query(..., description="User ID for personalized recommendations"),
-    n: int = Query(10, ge=1, le=50, description="Number of recommendations"),
+    n: int = Query(20, ge=1, le=50, description="Number of recommendations"),
     model: str = Query("hybrid", description="Model to use: content_based, item_based, user_based, hybrid")
 ):
     """
@@ -59,7 +59,7 @@ async def get_recommendations(
 @router.get("/similar/{anime_id}", response_model=RecommendationResponse)
 async def get_similar_anime(
     anime_id: int,
-    n: int = Query(10, ge=1, le=50, description="Number of similar anime")
+    n: int = Query(20, ge=1, le=50, description="Number of similar anime")
 ):
     """
     Get anime similar to a specific anime.
@@ -91,7 +91,7 @@ async def get_similar_anime(
 
 @router.get("/popular", response_model=RecommendationResponse)
 async def get_popular_recommendations(
-    n: int = Query(10, ge=1, le=50, description="Number of recommendations")
+    n: int = Query(20, ge=1, le=50, description="Number of recommendations")
 ):
     """
     Get popular anime recommendations (fallback for new users).
@@ -117,7 +117,7 @@ async def get_popular_recommendations(
 async def get_realtime_recommendations(
     user_id: int = Query(..., description="User ID"),
     context_anime_id: Optional[int] = Query(None, description="Current anime being viewed"),
-    n: int = Query(5, ge=1, le=20, description="Number of recommendations")
+    n: int = Query(20, ge=1, le=20, description="Number of recommendations")
 ):
     """
     Get real-time recommendations based on current user context.

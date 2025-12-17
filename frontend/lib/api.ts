@@ -51,6 +51,14 @@ export interface ModelMetrics {
     description?: string;
 }
 
+export interface RetrainStatus {
+    status: "idle" | "running" | "completed" | "error";
+    message: string;
+    progress: number;
+    started_at?: string;
+    model_name?: string;
+}
+
 export interface Statistics {
     total_users: number;
     total_anime: number;
@@ -213,18 +221,23 @@ export const api = {
 
     getVisualizationData: async () => {
         return fetchAPI<{
-            rating_distribution: Record<number, number>;
-            genre_distribution: Array<{ genre: string; count: number }>;
-            type_distribution: Array<{ type: string; count: number }>;
-            monthly_activity: Array<{ month: string; count: number }>;
+            genre_distribution: { name: string; value: number }[];
+            type_distribution: { name: string; value: number }[];
+            rating_distribution: { rating: number; count: number }[];
+            activity_timeline: { name: string; users: number; ratings: number }[];
+            top_anime: { rank: number; name: string; rating: number; members: number }[];
         }>("/api/admin/visualization");
     },
 
-    retrainModel: async (modelName: string) => {
-        return fetchAPI<{ message: string; model: string }>("/api/admin/models/retrain", {
+    retrainModel: async (modelName?: string) => {
+        const url = modelName ? `/api/admin/models/retrain?model=${encodeURIComponent(modelName)}` : "/api/admin/models/retrain";
+        return fetchAPI<{ message: string; model: string }>(url, {
             method: "POST",
-            body: JSON.stringify({ model: modelName }),
         });
+    },
+
+    getRetrainStatus: async () => {
+        return fetchAPI<RetrainStatus>("/api/admin/models/retrain/status");
     },
 };
 

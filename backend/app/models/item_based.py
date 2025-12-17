@@ -108,7 +108,7 @@ class ItemBasedRecommender(BaseRecommender):
             item_vector = self.rating_matrix.T.getrow(item_idx)
             return cosine_similarity(item_vector, self.rating_matrix.T).ravel()
     
-    def predict(self, user_id: int, n: int = 10) -> List[int]:
+    def predict(self, user_id: int, n: int = 20) -> List[int]:
         """
         Get recommendations for a user.
         

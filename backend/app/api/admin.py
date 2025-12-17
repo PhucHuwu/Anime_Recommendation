@@ -21,6 +21,7 @@ class ModelCompareResponse(BaseModel):
     models: List[ModelResponse]
 
 
+
 class VisualizationData(BaseModel):
     """Visualization data for charts."""
     genre_distribution: List[dict]
@@ -28,6 +29,29 @@ class VisualizationData(BaseModel):
     rating_distribution: List[dict]
     activity_timeline: List[dict]
     top_anime: List[dict]
+
+
+class TrainingState(BaseModel):
+    """Training process state."""
+    status: str = "idle"  # idle, running, completed, error
+    message: str = ""
+    progress: int = 0
+    started_at: Optional[datetime] = None
+    model_name: Optional[str] = None
+
+
+# Global state for training progress
+current_training_state = TrainingState()
+
+
+async def update_progress(message: str, progress: int):
+    """Callback to update training progress."""
+    current_training_state.message = message
+    current_training_state.progress = progress
+    if progress >= 100:
+        current_training_state.status = "completed"
+    elif message.startswith("Error"):
+        current_training_state.status = "error"
 
 
 @router.get("/stats", response_model=SystemStats)
@@ -158,6 +182,16 @@ async def get_models():
         )
 
 
+
+import train_models  # Import from root backend directory
+
+
+@router.get("/models/retrain/status", response_model=TrainingState)
+async def get_training_status():
+    """Get current training status."""
+    return current_training_state
+
+
 @router.post("/models/retrain")
 async def retrain_model(
     background_tasks: BackgroundTasks,
@@ -168,15 +202,20 @@ async def retrain_model(
     Runs in background and returns immediately.
     """
     try:
-        # In a real implementation, this would trigger model retraining
-        # For now, just return a success message
-        
         if model:
             message = f"Retraining {model} model started"
         else:
             message = "Retraining all models started"
+            
+        # Reset state
+        current_training_state.status = "running"
+        current_training_state.message = "Initializing..."
+        current_training_state.progress = 0
+        current_training_state.started_at = datetime.utcnow()
+        current_training_state.model_name = model
         
-        # background_tasks.add_task(retrain_models_task, model)
+        # Add background task
+        background_tasks.add_task(train_models.train_models_task, model, update_progress)
         
         return {
             "success": True,
