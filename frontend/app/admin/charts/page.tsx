@@ -6,10 +6,9 @@ import { Footer } from "@/components/footer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { PieChart } from "@/components/charts/pie-chart";
 import { BarChart } from "@/components/charts/bar-chart";
-import { RadarChart } from "@/components/charts/radar-chart";
 import { Button } from "@/components/ui/button";
 import { Download, Loader2 } from "lucide-react";
-import { api, ModelMetrics } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export default function AdminChartsPage() {
     const [loading, setLoading] = useState(true);
