@@ -115,50 +115,9 @@ async def get_models():
         cursor = metrics_col.find().sort("trained_at", -1)
         models = await cursor.to_list(length=100)
         
-        # If no models in DB, return default models
+        # If no models in DB, return empty list
         if not models:
-            return [
-                ModelResponse(
-                    model_name="Content-Based Filtering",
-                    rmse=0.92,
-                    mae=0.75,
-                    precision_k=0.68,
-                    recall_k=0.72,
-                    trained_at=datetime.utcnow(),
-                    status="active",
-                    description="Recommends based on anime features and metadata"
-                ),
-                ModelResponse(
-                    model_name="Item-Based Collaborative Filtering",
-                    rmse=0.85,
-                    mae=0.68,
-                    precision_k=0.74,
-                    recall_k=0.78,
-                    trained_at=datetime.utcnow(),
-                    status="active",
-                    description="Recommends based on anime similarity patterns"
-                ),
-                ModelResponse(
-                    model_name="User-Based Collaborative Filtering",
-                    rmse=0.88,
-                    mae=0.71,
-                    precision_k=0.71,
-                    recall_k=0.75,
-                    trained_at=datetime.utcnow(),
-                    status="active",
-                    description="Recommends based on similar user preferences"
-                ),
-                ModelResponse(
-                    model_name="Hybrid Model",
-                    rmse=0.82,
-                    mae=0.65,
-                    precision_k=0.79,
-                    recall_k=0.82,
-                    trained_at=datetime.utcnow(),
-                    status="active",
-                    description="Combines multiple algorithms for best results"
-                ),
-            ]
+            return []
         
         results = []
         for m in models:
@@ -168,6 +127,8 @@ async def get_models():
                 mae=m.get("mae", 0),
                 precision_k=m.get("precision_k", 0),
                 recall_k=m.get("recall_k", 0),
+                f1_k=m.get("f1_k", 0),
+                ndcg_k=m.get("ndcg_k", 0),
                 trained_at=m.get("trained_at"),
                 status="active",
                 description=m.get("description", "")

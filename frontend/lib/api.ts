@@ -44,6 +44,7 @@ export interface ModelMetrics {
     mae: number;
     precision_k: number;
     recall_k: number;
+    f1_k?: number;
     ndcg_k?: number;
     is_active?: boolean;
     trained_at?: string;

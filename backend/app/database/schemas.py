@@ -157,6 +157,8 @@ class ModelMetricsBase(BaseModel):
     mae: float = 0.0
     precision_k: float = 0.0
     recall_k: float = 0.0
+    f1_k: float = 0.0
+    ndcg_k: float = 0.0
 
 
 class ModelMetricsInDB(ModelMetricsBase):

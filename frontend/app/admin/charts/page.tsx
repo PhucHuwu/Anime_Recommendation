@@ -68,49 +68,60 @@ export default function AdminChartsPage() {
                 // Fetch Models
                 const models = await api.getModels();
                 if (models && models.length > 0) {
-                    // Create radar data: normalized metrics 0-100
-                    const getData = (modelNamePart: string, metric: keyof ModelMetrics) => {
+                    // Helper to get raw metric value with NaN guard
+                    const getRaw = (modelNamePart: string, metric: keyof ModelMetrics) => {
                         const m = models.find((m) => m.model_name.toLowerCase().includes(modelNamePart));
                         if (!m) return 0;
                         const val = m[metric] as number;
+                        return typeof val === "number" && !isNaN(val) ? val : 0;
+                    };
+
+                    // Normalize metric to 0-100 scale
+                    // If value > 1, assume it's already a percentage or raw score
+                    // If value <= 1, multiply by 100 to convert to percentage
+                    const normalizeMetric = (val: number) => {
+                        if (val <= 0) return 0;
+                        if (val > 1) return Math.min(Math.round(val), 100);
                         return Math.round(val * 100);
                     };
 
                     const perfData = [
                         {
                             subject: "RMSE (Inv)",
-                            contentBased: 100 - getData("content", "rmse"),
-                            itemBased: 100 - getData("item", "rmse"),
-                            userBased: 100 - getData("user", "rmse"),
-                            hybrid: 100 - getData("hybrid", "rmse"),
+                            // RMSE is on 1-10 scale. Normalize to 0-100 where 100 is best (0 error).
+                            // Formula: (1 - RMSE/10) * 100
+                            contentBased: Math.round(Math.max(0, (1 - getRaw("content", "rmse") / 10) * 100)),
+                            itemBased: Math.round(Math.max(0, (1 - getRaw("item", "rmse") / 10) * 100)),
+                            userBased: Math.round(Math.max(0, (1 - getRaw("user", "rmse") / 10) * 100)),
+                            hybrid: Math.round(Math.max(0, (1 - getRaw("hybrid", "rmse") / 10) * 100)),
                         },
                         {
                             subject: "Precision",
-                            contentBased: getData("content", "precision_k"),
-                            itemBased: getData("item", "precision_k"),
-                            userBased: getData("user", "precision_k"),
-                            hybrid: getData("hybrid", "precision_k"),
+                            contentBased: normalizeMetric(getRaw("content", "precision_k")),
+                            itemBased: normalizeMetric(getRaw("item", "precision_k")),
+                            userBased: normalizeMetric(getRaw("user", "precision_k")),
+                            hybrid: normalizeMetric(getRaw("hybrid", "precision_k")),
                         },
                         {
                             subject: "Recall",
-                            contentBased: getData("content", "recall_k"),
-                            itemBased: getData("item", "recall_k"),
-                            userBased: getData("user", "recall_k"),
-                            hybrid: getData("hybrid", "recall_k"),
+                            contentBased: normalizeMetric(getRaw("content", "recall_k")),
+                            itemBased: normalizeMetric(getRaw("item", "recall_k")),
+                            userBased: normalizeMetric(getRaw("user", "recall_k")),
+                            hybrid: normalizeMetric(getRaw("hybrid", "recall_k")),
                         },
                         {
-                            subject: "Accuracy",
-                            contentBased: getData("content", "precision_k"), // Using Precision as proxy for Accuracy
-                            itemBased: getData("item", "precision_k"),
-                            userBased: getData("user", "precision_k"),
-                            hybrid: getData("hybrid", "precision_k"),
+                            subject: "F1-Score",
+                            contentBased: normalizeMetric(getRaw("content", "f1_k")),
+                            itemBased: normalizeMetric(getRaw("item", "f1_k")),
+                            userBased: normalizeMetric(getRaw("user", "f1_k")),
+                            hybrid: normalizeMetric(getRaw("hybrid", "f1_k")),
                         },
                         {
                             subject: "NDCG",
-                            contentBased: getData("content", "ndcg_k"),
-                            itemBased: getData("item", "ndcg_k"),
-                            userBased: getData("user", "ndcg_k"),
-                            hybrid: getData("hybrid", "ndcg_k"),
+                            contentBased: normalizeMetric(getRaw("content", "ndcg_k")),
+                            itemBased: normalizeMetric(getRaw("item", "ndcg_k")),
+                            userBased: normalizeMetric(getRaw("user", "ndcg_k")),
+                            hybrid: normalizeMetric(getRaw("hybrid", "ndcg_k")),
                         },
                     ];
                     setModelPerformance(perfData);
@@ -190,22 +201,117 @@ export default function AdminChartsPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Model Performance - Radar Chart */}
+                        {/* Model Performance - Metrics Table */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>Model Performance Comparison</CardTitle>
-                                <CardDescription>ML model metrics across different algorithms (100 scale)</CardDescription>
+                                <CardDescription>Raw metrics for each recommendation algorithm</CardDescription>
                             </CardHeader>
                             <CardContent>
-                                <RadarChart
-                                    data={modelPerformance}
-                                    datasets={[
-                                        { dataKey: "contentBased", color: "var(--chart-1)", name: "Content-Based" },
-                                        { dataKey: "itemBased", color: "var(--chart-2)", name: "Item-Based CF" },
-                                        { dataKey: "userBased", color: "var(--chart-3)", name: "User-Based CF" },
-                                        { dataKey: "hybrid", color: "var(--chart-4)", name: "Hybrid" },
-                                    ]}
-                                />
+                                {modelPerformance.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-border">
+                                                    <th className="text-left py-3 px-2 font-semibold text-muted-foreground">Model</th>
+                                                    <th className="text-center py-3 px-2 font-semibold text-muted-foreground">RMSE</th>
+                                                    <th className="text-center py-3 px-2 font-semibold text-muted-foreground">MAE</th>
+                                                    <th className="text-center py-3 px-2 font-semibold text-muted-foreground">Precision</th>
+                                                    <th className="text-center py-3 px-2 font-semibold text-muted-foreground">Recall</th>
+                                                    <th className="text-center py-3 px-2 font-semibold text-muted-foreground">F1</th>
+                                                    <th className="text-center py-3 px-2 font-semibold text-muted-foreground">NDCG</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {modelPerformance.map((model, idx) => (
+                                                    <tr key={idx} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                                                        <td className="py-3 px-2 font-medium">{model.name}</td>
+                                                        <td className="text-center py-3 px-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-mono ${
+                                                                    model.rmse <= 1.5
+                                                                        ? "bg-green-500/20 text-green-400"
+                                                                        : model.rmse <= 2.5
+                                                                        ? "bg-yellow-500/20 text-yellow-400"
+                                                                        : "bg-red-500/20 text-red-400"
+                                                                }`}
+                                                            >
+                                                                {model.rmse.toFixed(4)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-center py-3 px-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-mono ${
+                                                                    model.mae <= 1.0
+                                                                        ? "bg-green-500/20 text-green-400"
+                                                                        : model.mae <= 2.0
+                                                                        ? "bg-yellow-500/20 text-yellow-400"
+                                                                        : "bg-red-500/20 text-red-400"
+                                                                }`}
+                                                            >
+                                                                {model.mae.toFixed(4)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-center py-3 px-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-mono ${
+                                                                    model.precision >= 0.7
+                                                                        ? "bg-green-500/20 text-green-400"
+                                                                        : model.precision >= 0.4
+                                                                        ? "bg-yellow-500/20 text-yellow-400"
+                                                                        : "bg-red-500/20 text-red-400"
+                                                                }`}
+                                                            >
+                                                                {model.precision.toFixed(4)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-center py-3 px-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-mono ${
+                                                                    model.recall >= 0.7
+                                                                        ? "bg-green-500/20 text-green-400"
+                                                                        : model.recall >= 0.4
+                                                                        ? "bg-yellow-500/20 text-yellow-400"
+                                                                        : "bg-red-500/20 text-red-400"
+                                                                }`}
+                                                            >
+                                                                {model.recall.toFixed(4)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-center py-3 px-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-mono ${
+                                                                    model.f1 >= 0.7
+                                                                        ? "bg-green-500/20 text-green-400"
+                                                                        : model.f1 >= 0.4
+                                                                        ? "bg-yellow-500/20 text-yellow-400"
+                                                                        : "bg-red-500/20 text-red-400"
+                                                                }`}
+                                                            >
+                                                                {model.f1.toFixed(4)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="text-center py-3 px-2">
+                                                            <span
+                                                                className={`px-2 py-1 rounded text-xs font-mono ${
+                                                                    model.ndcg >= 0.7
+                                                                        ? "bg-green-500/20 text-green-400"
+                                                                        : model.ndcg >= 0.4
+                                                                        ? "bg-yellow-500/20 text-yellow-400"
+                                                                        : "bg-red-500/20 text-red-400"
+                                                                }`}
+                                                            >
+                                                                {model.ndcg.toFixed(4)}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <p className="text-muted-foreground text-center py-8">No model metrics available. Please train models first.</p>
+                                )}
                             </CardContent>
                         </Card>
                     </div>
